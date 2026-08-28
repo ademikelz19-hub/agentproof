@@ -1,0 +1,22 @@
+{
+  "name": "agentproof",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Open reliability infrastructure for autonomous onchain agents (ERC-8004 / BSC).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
