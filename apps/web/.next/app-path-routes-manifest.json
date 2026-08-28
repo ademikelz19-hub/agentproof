@@ -1,0 +1,16 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/agents/[chain]/[id]/page": "/agents/[chain]/[id]",
+  "/agents/page": "/agents",
+  "/api/v1/agents/[chain]/[id]/observations/route": "/api/v1/agents/[chain]/[id]/observations",
+  "/api/v1/agents/[chain]/[id]/reliability/route": "/api/v1/agents/[chain]/[id]/reliability",
+  "/api/v1/agents/[chain]/[id]/reputation-integrity/route": "/api/v1/agents/[chain]/[id]/reputation-integrity",
+  "/api/v1/agents/[chain]/[id]/route": "/api/v1/agents/[chain]/[id]",
+  "/api/v1/agents/[chain]/[id]/services/route": "/api/v1/agents/[chain]/[id]/services",
+  "/api/v1/agents/route": "/api/v1/agents",
+  "/api/v1/methodology/route": "/api/v1/methodology",
+  "/developers/page": "/developers",
+  "/methodology/page": "/methodology",
+  "/page": "/"
+}

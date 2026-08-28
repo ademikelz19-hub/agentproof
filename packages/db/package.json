@@ -7,8 +7,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "true",
-    "lint": "true",
+    "test": "echo test bypassed",
+    "lint": "echo linting bypassed",
     "build": "tsc -p ."
   },
   "dependencies": {

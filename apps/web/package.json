@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit -p .",
-    "test": "true",
-    "lint": "true"
+    "test": "echo test bypassed",
+    "lint": "echo linting bypassed"
   },
   "dependencies": {
     "@agentproof/core": "0.1.0",
