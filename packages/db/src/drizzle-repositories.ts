@@ -16,7 +16,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, lte, lt } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, lt, or } from 'drizzle-orm';
 import type { PgDatabase } from 'drizzle-orm/pg-core';
 import type {
   AgentIdentity,
@@ -37,6 +37,16 @@ import * as schema from './schema';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDb = PgDatabase<any, typeof schema, any>;
+
+function normalizeAgentId(rawId: string, chain: string = 'bsc'): string {
+  try {
+    const decoded = decodeURIComponent(rawId).trim();
+    if (decoded.includes(':')) return decoded;
+    return `${chain}:${decoded}`;
+  } catch {
+    return rawId.trim();
+  }
+}
 
 export class DrizzleAgentRepository implements AgentRepository {
   constructor(private readonly db: AnyDb) {}
@@ -64,16 +74,29 @@ export class DrizzleAgentRepository implements AgentRepository {
   }
 
   async getAgent(chain: ChainId, agentId: string): Promise<AgentIdentity | null> {
+    const normalized = normalizeAgentId(agentId, chain);
+    const bareOnchainId: string = (normalized.includes(':') ? normalized.split(':')[1] : normalized) || normalized;
     const [row] = await this.db
       .select()
       .from(schema.agents)
-      .where(and(eq(schema.agents.chain, chain), eq(schema.agents.id, agentId)))
+      .where(
+        and(
+          eq(schema.agents.chain, chain),
+          or(eq(schema.agents.id, normalized), eq(schema.agents.onchainId, bareOnchainId))
+        )
+      )
       .limit(1);
     return row ? rowToAgentIdentity(row) : null;
   }
 
   async getMetadata(agentId: string): Promise<AgentMetadata | null> {
-    const [row] = await this.db.select().from(schema.agents).where(eq(schema.agents.id, agentId)).limit(1);
+    const normalized = normalizeAgentId(agentId);
+    const bareOnchainId: string = (normalized.includes(':') ? normalized.split(':')[1] : normalized) || normalized;
+    const [row] = await this.db
+      .select()
+      .from(schema.agents)
+      .where(or(eq(schema.agents.id, normalized), eq(schema.agents.onchainId, bareOnchainId)))
+      .limit(1);
     if (!row) return null;
     return {
       agentId: row.id,
@@ -90,7 +113,8 @@ export class DrizzleAgentRepository implements AgentRepository {
   }
 
   async getServices(agentId: string): Promise<AgentService[]> {
-    const rows = await this.db.select().from(schema.services).where(eq(schema.services.agentId, agentId));
+    const normalized = normalizeAgentId(agentId);
+    const rows = await this.db.select().from(schema.services).where(eq(schema.services.agentId, normalized));
     return rows.map((r) => ({
       id: r.id,
       agentId: r.agentId,
@@ -152,8 +176,9 @@ export class DrizzleObservationRepository implements ObservationRepository {
     limit: number;
     cursor?: string;
   }): Promise<Page<ProbeObservation>> {
+    const normalized = normalizeAgentId(opts.agentId);
     const conditions = [
-      eq(schema.observations.agentId, opts.agentId),
+      eq(schema.observations.agentId, normalized),
       opts.serviceId ? eq(schema.observations.serviceId, opts.serviceId) : undefined,
       gte(schema.observations.timestamp, new Date(opts.since)),
       lte(schema.observations.timestamp, new Date(opts.until)),
@@ -216,8 +241,9 @@ export class DrizzleReputationRepository implements ReputationRepository {
    * See docs/REPUTATION_INTEGRITY.md "Feedback availability semantics".
    */
   async listFeedback(agentId: string): Promise<FeedbackQueryResult> {
+    const normalized = normalizeAgentId(agentId);
     // Extract numeric tokenId from "bsc:12345" format
-    const match = /^bsc:(\d+)$/.exec(agentId);
+    const match = /^bsc:(\d+)$/.exec(normalized);
     if (!match) {
       return { status: 'NOT_INGESTED', records: [] };
     }

@@ -152,7 +152,8 @@ export default async function AgentPassportPage({
   params: Promise<{ chain: string; id: string }>;
 }) {
   const { chain, id } = await params;
-  const agent = await agentRepository.getAgent(chain as ChainId, id);
+  const decodedId = decodeURIComponent(id);
+  const agent = await agentRepository.getAgent(chain as ChainId, decodedId);
 
   if (!agent) {
     return (

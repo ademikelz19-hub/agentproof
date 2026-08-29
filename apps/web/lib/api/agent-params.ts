@@ -11,7 +11,15 @@ export const agentParamsSchema = z.object({
 export function parseAgentParams(params: { chain: string; id: string }):
   | { ok: true; value: { chain: ChainId; id: string } }
   | { ok: false; error: string } {
-  const result = agentParamsSchema.safeParse(params);
+  let normalizedParams = params;
+  try {
+    normalizedParams = {
+      chain: params.chain,
+      id: decodeURIComponent(params.id),
+    };
+  } catch {}
+
+  const result = agentParamsSchema.safeParse(normalizedParams);
   if (!result.success) {
     return { ok: false, error: result.error.issues.map((i) => i.message).join('; ') };
   }
