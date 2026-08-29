@@ -1,76 +1,512 @@
+import Link from 'next/link';
 import { PageShell } from '@/components/PageShell';
+import { MetricCard } from '@/components/MetricCard';
+import { OutcomeBadge, ProtocolBadge } from '@/components/Badges';
+import { db, agents, services, observations, probeRuns, reputationSnapshots } from '@agentproof/db';
+import { count, desc } from 'drizzle-orm';
+import {
+  Shield,
+  Activity,
+  ArrowRight,
+  Server,
+  Database,
+  CheckCircle2,
+  Lock,
+  Layers,
+  Code,
+  FileCheck,
+  Zap,
+} from 'lucide-react';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  // Fetch genuine metrics directly from Neon PostgreSQL
+  let totalAgents = 0;
+  let totalServices = 0;
+  let totalObservations = 0;
+  let latestRun: typeof probeRuns.$inferSelect | null = null;
+  let recentObservations: (typeof observations.$inferSelect & { agentName?: string | null })[] = [];
+
+  try {
+    const [
+      agentCountRes,
+      serviceCountRes,
+      obsCountRes,
+      lastRunRes,
+      latestObsRes,
+    ] = await Promise.all([
+      db.select({ count: count() }).from(agents),
+      db.select({ count: count() }).from(services),
+      db.select({ count: count() }).from(observations),
+      db.select().from(probeRuns).orderBy(desc(probeRuns.startedAt)).limit(1),
+      db.select().from(observations).orderBy(desc(observations.timestamp)).limit(10),
+    ]);
+
+    totalAgents = agentCountRes[0]?.count ?? 0;
+    totalServices = serviceCountRes[0]?.count ?? 0;
+    totalObservations = obsCountRes[0]?.count ?? 0;
+    latestRun = lastRunRes[0] ?? null;
+    recentObservations = latestObsRes ?? [];
+  } catch (err) {
+    console.error('Error fetching homepage telemetry:', err);
+  }
+
   return (
     <PageShell>
-      <section style={{ padding: '2rem 0 3rem' }}>
-        <h1 style={{ fontSize: '2.25rem', lineHeight: 1.15, margin: '0 0 1rem' }}>AgentProof</h1>
-        <p style={{ fontSize: '1.15rem', color: '#333', margin: '0 0 1.5rem' }}>
+      {/* 1. Hero Section */}
+      <section style={{ padding: '2rem 0 3.5rem', textAlign: 'center', maxWidth: 840, margin: '0 auto' }}>
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.3rem 0.85rem',
+            background: 'var(--accent-bnb-subtle)',
+            border: '1px solid var(--accent-bnb-border)',
+            borderRadius: 9999,
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: 'var(--accent-bnb)',
+            marginBottom: '1.5rem',
+            letterSpacing: '0.04em',
+          }}
+        >
+          <span className="live-pulse" />
+          <span>BNB CHAIN AGENT RELIABILITY INFRASTRUCTURE</span>
+        </div>
+
+        <h1
+          style={{
+            fontSize: 'clamp(2rem, 5vw, 3.25rem)',
+            fontWeight: 800,
+            lineHeight: 1.15,
+            letterSpacing: '-0.03em',
+            marginBottom: '1.25rem',
+            color: 'var(--text-primary)',
+          }}
+        >
           Independent reliability evidence for autonomous onchain agents.
-        </p>
-        <p style={{ fontSize: '1rem', color: '#555', maxWidth: 640, lineHeight: 1.6 }}>
-          Registration proves identity. AgentProof measures whether the advertised
-          service actually works — reachability, latency, and protocol response
-          validity, observed independently and shown with full provenance and
-          methodology, never as a manufactured trust score.
+        </h1>
+
+        <p
+          style={{
+            fontSize: 'clamp(1rem, 2vw, 1.15rem)',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.6,
+            marginBottom: '2rem',
+            maxWidth: 680,
+            margin: '0 auto 2rem',
+          }}
+        >
+          Registration proves an agent exists. <strong>AgentProof</strong> continuously and independently
+          measures whether its advertised services actually work — reachability, response latency, protocol validity,
+          and reviewer diversity without manufactured trust scores.
         </p>
 
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-          <a
-            href="/agents"
-            style={{
-              padding: '0.7rem 1.3rem',
-              background: '#111',
-              color: '#fff',
-              borderRadius: 6,
-              textDecoration: 'none',
-              fontWeight: 600,
-            }}
-          >
-            Explore Agents
-          </a>
-          <a
-            href="/methodology"
-            style={{
-              padding: '0.7rem 1.3rem',
-              border: '1px solid #ccc',
-              borderRadius: 6,
-              textDecoration: 'none',
-              color: 'inherit',
-            }}
-          >
-            View Methodology
-          </a>
-          <a
-            href="/developers"
-            style={{
-              padding: '0.7rem 1.3rem',
-              border: '1px solid #ccc',
-              borderRadius: 6,
-              textDecoration: 'none',
-              color: 'inherit',
-            }}
-          >
-            Read API Docs
-          </a>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '0.85rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Link href="/agents" className="btn btn-primary" style={{ padding: '0.75rem 1.4rem' }}>
+            <Activity size={16} />
+            <span>Explore Live Agents</span>
+            <ArrowRight size={15} />
+          </Link>
+          <Link href="/methodology" className="btn btn-secondary" style={{ padding: '0.75rem 1.4rem' }}>
+            <span>View Methodology</span>
+          </Link>
+          <Link href="/developers" className="btn btn-secondary" style={{ padding: '0.75rem 1.4rem' }}>
+            <Code size={15} />
+            <span>Read-Only API</span>
+          </Link>
+        </div>
+
+        <div
+          style={{
+            marginTop: '2.5rem',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '1.5rem',
+            flexWrap: 'wrap',
+            color: 'var(--text-muted)',
+            fontSize: '0.8rem',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <span>✓ Live BSC Probing</span>
+          <span>•</span>
+          <span>✓ Deterministic Math</span>
+          <span>•</span>
+          <span>✓ Zero ML Hallucinations</span>
+          <span>•</span>
+          <span>✓ $0 Developer API</span>
         </div>
       </section>
 
-      <section
-        style={{
-          border: '1px solid #e5e5e5',
-          borderRadius: 8,
-          padding: '1.25rem 1.5rem',
-          background: '#fafafa',
-          color: '#444',
-          fontSize: '0.95rem',
-        }}
-      >
-        Live BSC measurements will appear here once monitoring is activated.
-        AgentProof&apos;s security engine, reliability calculations, and reputation-integrity
-        analysis are built and tested (see <a href="/developers">the API docs</a>) —
-        the platform is honest about what it has and hasn&apos;t measured yet rather than
-        showing placeholder numbers.
+      {/* 2. Genuine Live Network Telemetry */}
+      <section style={{ marginBottom: '4rem' }}>
+        <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Live Network Telemetry
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+              Real-time measurement metrics directly backed by Neon PostgreSQL observations on BNB Chain.
+            </p>
+          </div>
+          <div
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            <span className="live-pulse" />
+            <span>Active Probing</span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1rem',
+          }}
+        >
+          <MetricCard
+            label="Monitored Agents"
+            value={totalAgents}
+            subvalue="ERC-8004 Registry"
+            description="Active autonomous agents tracked from BNB Chain onchain registry."
+            icon={Shield}
+            accent="var(--accent-bnb)"
+            tooltip="Count of distinct agents stored with onchain registry IDs."
+          />
+          <MetricCard
+            label="Observations Collected"
+            value={totalObservations.toLocaleString()}
+            subvalue="Append-Only Ledger"
+            description="SSRF-hardened probe measurements recorded to Postgres."
+            icon={Database}
+            accent="var(--status-strong)"
+            tooltip="Total individual reachability, latency, and protocol observations recorded."
+          />
+          <MetricCard
+            label="Registered Services"
+            value={totalServices}
+            subvalue="HTTP, A2A, MCP"
+            description="Declared RPC, API, and agent-to-agent endpoints."
+            icon={Server}
+            accent="var(--status-limited)"
+            tooltip="Active service declarations extracted from agent metadata."
+          />
+          <MetricCard
+            label="Latest Probe Run"
+            value={latestRun?.finishedAt ? new Date(latestRun.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
+            subvalue={latestRun?.startedAt ? new Date(latestRun.startedAt).toLocaleDateString() : 'Hourly'}
+            description={`Targeted ${latestRun?.targetAgentCount ?? totalAgents} agents via autonomous GitHub runner.`}
+            icon={Zap}
+            accent="var(--status-moderate)"
+            tooltip="Timestamp of the most recent autonomous cloud probe cycle."
+          />
+        </div>
+      </section>
+
+      {/* 3. The Problem & Solution Story */}
+      <section style={{ marginBottom: '4rem' }}>
+        <div className="card" style={{ padding: '2.5rem 2rem', background: 'var(--bg-surface-1)' }}>
+          <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2.5rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+              From Identity to Verified Reliability
+            </h2>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Onchain identity is not proof of operational uptime. AgentProof bridges the gap between static declaration and live empirical evidence.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '1.5rem',
+              position: 'relative',
+            }}
+          >
+            {/* Step 1 */}
+            <div
+              style={{
+                padding: '1.25rem',
+                background: 'var(--bg-surface-2)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--accent-bnb)',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                01 • REGISTERED
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Onchain Identity
+              </h3>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                An agent mints an ERC-8004 NFT on BNB Chain specifying metadata URI and wallet ownership.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div
+              style={{
+                padding: '1.25rem',
+                background: 'var(--bg-surface-2)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--status-limited)',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                02 • ADVERTISED
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Declared Services
+              </h3>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Metadata resolves to declare HTTP endpoints, MCP tools, A2A communication, or model capabilities.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div
+              style={{
+                padding: '1.25rem',
+                background: 'var(--bg-surface-2)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--status-moderate)',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                03 • MEASURED
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Autonomous Probing
+              </h3>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                AgentProof runs SSRF-hardened, rate-limited probes measuring DNS, latency, HTTP status, and response structure.
+              </p>
+            </div>
+
+            {/* Step 4 */}
+            <div
+              style={{
+                padding: '1.25rem',
+                background: 'var(--bg-surface-2)',
+                border: '1px solid var(--status-strong-border)',
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--status-strong)',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                04 • EVIDENCE
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Reliability Passport
+              </h3>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Observations aggregate into 24h/7d/30d availability windows and neutral reviewer diversity signals.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Live Activity Stream */}
+      <section style={{ marginBottom: '4rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Recent Probe Observations
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+              Latest empirical measurements collected across the BNB Chain agent cohort.
+            </p>
+          </div>
+          <Link href="/agents" className="btn btn-secondary btn-sm">
+            <span>View All Agents</span>
+            <ArrowRight size={13} />
+          </Link>
+        </div>
+
+        {recentObservations.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+            No recent probe observations recorded. Probing runs automatically every hour.
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Agent Target</th>
+                  <th>Probe Type</th>
+                  <th>Outcome</th>
+                  <th>Latency</th>
+                  <th>HTTP Status</th>
+                  <th>Observed At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentObservations.map((obs) => (
+                  <tr key={obs.id}>
+                    <td>
+                      <Link
+                        href={`/agents/${obs.chain}/${obs.agentId}`}
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <span className="font-mono">{obs.agentId}</span>
+                      </Link>
+                    </td>
+                    <td>
+                      <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {obs.probeType}
+                      </span>
+                    </td>
+                    <td>
+                      <OutcomeBadge outcome={obs.outcome} />
+                    </td>
+                    <td>
+                      {obs.latencyMs !== null ? (
+                        <span className="font-mono" style={{ fontWeight: 600 }}>
+                          {obs.latencyMs} ms
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      {obs.httpStatus ? (
+                        <span
+                          className="font-mono"
+                          style={{
+                            fontSize: '0.75rem',
+                            color: obs.httpStatus >= 200 && obs.httpStatus < 300 ? 'var(--status-success)' : 'var(--status-warning)',
+                          }}
+                        >
+                          HTTP {obs.httpStatus}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {new Date(obs.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* 5. Core Architectural Pillars */}
+      <section style={{ marginBottom: '2rem' }}>
+        <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2rem' }}>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+            Engineered for Trust &amp; Composability
+          </h2>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+            Why developer ecosystems and onchain orchestrators rely on AgentProof evidence.
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1.25rem',
+          }}
+        >
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <div style={{ color: 'var(--accent-bnb)' }}>
+                <Lock size={20} />
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>SSRF-Hardened Transport</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              All network probes pass through isolated DNS-pinned transports that block RFC1918 private networks, AWS/GCP metadata endpoints, and internal loopback addresses.
+            </p>
+          </div>
+
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <div style={{ color: 'var(--status-strong)' }}>
+                <FileCheck size={20} />
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Deterministic Math</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Zero AI or LLM scoring. Reliability metrics are calculated with reproducible mathematical formulas over explicit 24h, 7d, and 30d observation windows.
+            </p>
+          </div>
+
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <div style={{ color: 'var(--status-limited)' }}>
+                <Code size={20} />
+              </div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Zero-Cost REST API</h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Designed for automated routing and orchestrators like AgentFlow. Read endpoints require no API key and provide JSON responses with explicit provenance.
+            </p>
+          </div>
+        </div>
       </section>
     </PageShell>
   );
