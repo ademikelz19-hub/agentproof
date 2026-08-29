@@ -15,7 +15,7 @@
     "@agentproof/reliability": "0.1.0",
     "@agentproof/reputation": "0.1.0",
     "dotenv": "^17.4.2",
-    "next": "16.4.0-canary.11",
+    "next": "^15.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"
