@@ -61,13 +61,19 @@ function decodeAgentTokenId(feedbackUri: string | undefined): number | null {
   }
 }
 
-/** Fetch all feedback pages from 8004scan until exhausted. */
+/** Fetch feedback pages from 8004scan until exhausted or MAX_FEEDBACK_PAGES reached. */
 async function fetchAllFeedbacks(): Promise<RawFeedback[]> {
   const all: RawFeedback[] = [];
   let page = 1;
   let hasMore = true;
+  const maxPages = process.env.MAX_FEEDBACK_PAGES ? parseInt(process.env.MAX_FEEDBACK_PAGES, 10) : 0;
 
   while (hasMore) {
+    if (maxPages > 0 && page > maxPages) {
+      console.log(`  Reached MAX_FEEDBACK_PAGES (${maxPages}). Stopping bounded pagination.`);
+      break;
+    }
+
     const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=${CHAIN_ID}&limit=100&page=${page}`;
     const res = await fetch(url, { headers: { 'X-API-Key': API_KEY } });
     if (!res.ok) {
@@ -84,7 +90,7 @@ async function fetchAllFeedbacks(): Promise<RawFeedback[]> {
     hasMore = body.meta?.pagination?.hasMore ?? false;
     page++;
     // Rate-limit: pause briefly between pages
-    if (hasMore) await new Promise(r => setTimeout(r, 300));
+    if (hasMore) await new Promise(r => setTimeout(r, 200));
   }
 
   return all;

@@ -1,0 +1,37 @@
+name: Autonomous Agent Monitoring
+
+on:
+  schedule:
+    # Run hourly at minute 0 (24 runs/day = ~240 min/month on GitHub Actions free tier)
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: agent-monitoring
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Probe Active BSC Cohort
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run hardened probe monitoring
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EIGHT004SCAN_API_KEY: ${{ secrets.EIGHT004SCAN_API_KEY }}
+          EIGHT_O_FOUR_API_KEY: ${{ secrets.EIGHT_O_FOUR_API_KEY }}
+        run: npx tsx scripts/run-monitoring.ts

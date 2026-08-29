@@ -142,7 +142,13 @@ async function run() {
     minIntervalMsPerHost: 5000,
   });
 
-  const observationPromises: Array<Promise<void>> = [];
+  // Metrics tracking
+  let observationsWritten = 0;
+  let successfulProbes = 0;
+  let attributableFailures = 0;
+  let internalFailures = 0;
+  let skippedTargets = 0;
+  const startTime = Date.now();
 
   // Probe agent metadata resolution if metadataUri is present
   for (const agent of processedAgents) {
@@ -152,11 +158,11 @@ async function run() {
         try {
           host = new URL(agent.metadataUri!).hostname;
         } catch {
-          // If metadataUri is invalid, skip or log
           return;
         }
 
         if (rateLimiter.isInCooldown(host)) {
+          skippedTargets++;
           console.log(`  [Skipped] Metadata probe for agent ${agent.id} (host ${host} is in cooldown)`);
           return;
         }
@@ -172,7 +178,6 @@ async function run() {
           };
           const obs = await probeMetadataResolution(target, agent.metadataUri!);
           
-          // Record observation
           await db.insert(observations).values({
             id: obs.id,
             probeRunId: runId,
@@ -190,12 +195,20 @@ async function run() {
             probeVersion: obs.probeVersion,
             methodologyVersion: obs.methodologyVersion,
           });
+          observationsWritten++;
 
-          rateLimiter.recordSuccess(host);
-          console.log(`  [Success] Metadata probe for agent ${agent.id} resolved with outcome: ${obs.outcome}`);
+          if (obs.outcome === 'SUCCESS') {
+            successfulProbes++;
+            rateLimiter.recordSuccess(host);
+          } else {
+            attributableFailures++;
+            rateLimiter.recordFailure(host);
+          }
+          console.log(`  [${obs.outcome}] Metadata probe for agent ${agent.id}`);
         } catch (err: any) {
+          internalFailures++;
           rateLimiter.recordFailure(host);
-          console.error(`  [Failure] Metadata probe for agent ${agent.id}:`, err.message);
+          console.error(`  [Internal Error] Metadata probe for agent ${agent.id}:`, err.message);
         } finally {
           release();
         }
@@ -216,7 +229,8 @@ async function run() {
       }
 
       if (rateLimiter.isInCooldown(host)) {
-        console.log(`  [Skipped] Service ${service.id} (${service.url}) (host ${host} is in cooldown)`);
+        skippedTargets++;
+        console.log(`  [Skipped] Service ${service.id} (host ${host} is in cooldown)`);
         return;
       }
 
@@ -231,7 +245,6 @@ async function run() {
           protocol: service.protocol as ServiceProtocol,
         };
 
-        // Run the suite of probes required for each service
         const reachability = await probeServiceReachability(target);
         const status = await probeHttpStatus(target);
         const latency = await probeResponseLatency(target);
@@ -257,13 +270,21 @@ async function run() {
             probeVersion: obs.probeVersion,
             methodologyVersion: obs.methodologyVersion,
           });
+          observationsWritten++;
+          if (obs.outcome === 'SUCCESS') successfulProbes++;
+          else attributableFailures++;
         }
 
-        rateLimiter.recordSuccess(host);
-        console.log(`  [Success] Service ${service.id} probed. Reachability outcome: ${reachability.outcome}`);
+        if (reachability.outcome === 'SUCCESS') {
+          rateLimiter.recordSuccess(host);
+        } else {
+          rateLimiter.recordFailure(host);
+        }
+        console.log(`  [${reachability.outcome}] Service ${service.id} probed.`);
       } catch (err: any) {
+        internalFailures++;
         rateLimiter.recordFailure(host);
-        console.error(`  [Failure] Service ${service.id}:`, err.message);
+        console.error(`  [Internal Error] Service ${service.id}:`, err.message);
       } finally {
         release();
       }
@@ -275,12 +296,26 @@ async function run() {
   // Wait for all monitoring actions to complete
   await Promise.all(observationPromises);
 
+  const finishedAt = new Date();
+  const durationMs = Date.now() - startTime;
+
   // Update probeRun completion time
   await db.update(probeRuns).set({
-    finishedAt: new Date(),
+    finishedAt,
   }).where(eq(probeRuns.id, runId));
 
-  console.log(`--- Probe Run ${runId} Complete ---`);
+  console.log('\n================ PROBE RUN SUMMARY ================');
+  console.log(`  Run ID:                ${runId}`);
+  console.log(`  Agents Attempted:      ${processedAgents.length}`);
+  console.log(`  Services Attempted:    ${activeServices.length}`);
+  console.log(`  Observations Written:  ${observationsWritten}`);
+  console.log(`  Successful Probes:     ${successfulProbes}`);
+  console.log(`  Attributable Failures: ${attributableFailures}`);
+  console.log(`  Skipped (Cooldown):    ${skippedTargets}`);
+  console.log(`  Internal Failures:     ${internalFailures}`);
+  console.log(`  Duration:              ${(durationMs / 1000).toFixed(2)}s`);
+  console.log(`  Finished At:           ${finishedAt.toISOString()}`);
+  console.log('====================================================\n');
   process.exit(0);
 }
 
