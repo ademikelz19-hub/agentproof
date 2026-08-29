@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { PageShell } from '@/components/PageShell';
 import { MetricCard } from '@/components/MetricCard';
 import { OutcomeBadge, ProtocolBadge } from '@/components/Badges';
+import { TimeAgo, LocalTime } from '@/components/TimeAgo';
 import { db, agents, services, observations, probeRuns, reputationSnapshots } from '@agentproof/db';
 import { count, desc } from 'drizzle-orm';
 import {
@@ -212,8 +213,8 @@ export default async function Home() {
           />
           <MetricCard
             label="Latest Probe Run"
-            value={latestRun?.finishedAt ? new Date(latestRun.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
-            subvalue={latestRun?.startedAt ? new Date(latestRun.startedAt).toLocaleDateString() : 'Hourly'}
+            value={latestRun?.finishedAt ? <TimeAgo timestamp={latestRun.finishedAt} /> : 'Active'}
+            subvalue={latestRun?.finishedAt ? `Completed at ${new Date(latestRun.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC` : 'Hourly Cycle'}
             description={`Targeted ${latestRun?.targetAgentCount ?? totalAgents} agents via autonomous GitHub runner.`}
             icon={Zap}
             accent="var(--status-moderate)"
@@ -442,7 +443,7 @@ export default async function Home() {
                     </td>
                     <td>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {new Date(obs.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        <TimeAgo timestamp={obs.timestamp} />
                       </span>
                     </td>
                   </tr>
