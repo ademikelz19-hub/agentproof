@@ -9,6 +9,7 @@ import { ReliabilityTimeline } from '@/components/ReliabilityTimeline';
 import { UptimeHistoryGraph } from '@/components/UptimeHistoryGraph';
 import type { ChainId, ReliabilityWindow } from '@agentproof/core';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import {
   Shield,
   Activity,
@@ -153,33 +154,14 @@ export default async function AgentPassportPage({
   params: Promise<{ chain: string; id: string }>;
 }) {
   const { chain, id } = await params;
+  if (chain !== 'bsc') {
+    notFound();
+  }
   const decodedId = decodeURIComponent(id);
   const agent = await agentRepository.getAgent(chain as ChainId, decodedId);
 
   if (!agent) {
-    return (
-      <PageShell>
-        <div style={{ padding: '2rem 0' }}>
-          <Link
-            href="/agents"
-            className="btn btn-secondary btn-sm"
-            style={{ marginBottom: '1.5rem', display: 'inline-flex' }}
-          >
-            <ArrowLeft size={13} />
-            <span>Back to Explorer</span>
-          </Link>
-          <EmptyState
-            title="No measurement evidence found for this agent"
-            body={`AgentProof has no record for ${id} on ${chain}. The agent may not be indexed from ERC-8004 yet or has not advertised verifiable services.`}
-            action={
-              <Link href="/agents" className="btn btn-primary btn-sm">
-                Browse Monitored Agents
-              </Link>
-            }
-          />
-        </div>
-      </PageShell>
-    );
+    notFound();
   }
 
   const [metadata, servicesList, feedback] = await Promise.all([
