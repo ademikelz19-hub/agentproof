@@ -11,7 +11,7 @@ export default async function AgentsPage() {
   let agentItems: any[] = [];
 
   try {
-    const rawAgents = await db.select().from(agents).orderBy(desc(agents.lastIngestedAt)).limit(100);
+    const rawAgents = await db.select().from(agents).orderBy(desc(agents.lastIngestedAt)).limit(500);
     const rawServices = await db.select().from(services);
 
     // Group services by agentId
