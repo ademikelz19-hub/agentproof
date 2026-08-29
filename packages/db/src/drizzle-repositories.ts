@@ -252,7 +252,11 @@ export class DrizzleReputationRepository implements ReputationRepository {
     if (!apiKey) {
       return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
     }
-    const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=56&tokenId=${tokenId}&limit=100`;
+
+    // NOTE: The 8004scan /feedbacks endpoint ignores the tokenId query parameter
+    // and returns platform-wide global feedback. We fetch a larger page and filter
+    // client-side by the agent's token_id embedded in the feedback records.
+    const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=56&limit=500`;
 
     try {
       const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
@@ -263,14 +267,26 @@ export class DrizzleReputationRepository implements ReputationRepository {
         data?: Array<{
           user_address?: string;
           submitted_at?: string;
+          agent?: { token_id?: string };
         }>;
       };
       if (!body.success || !Array.isArray(body.data)) {
         return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
       }
 
+      // Filter to only this agent's feedback records
+      const agentRecords = body.data.filter(
+        (r) => r.agent?.token_id === tokenId
+      );
+
+      // If no agent-specific records found, return NOT_INGESTED rather than
+      // falsely reporting 0 reviews (the agent may simply have no reviews yet)
+      if (agentRecords.length === 0) {
+        return { status: 'NOT_INGESTED', records: [] };
+      }
+
       const observedAt = new Date().toISOString();
-      const records: FeedbackRecord[] = body.data.map((raw) => ({
+      const records: FeedbackRecord[] = agentRecords.map((raw) => ({
         agentId,
         reviewerId: raw.user_address ?? 'unknown',
         timestamp: raw.submitted_at ?? observedAt,
