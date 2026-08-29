@@ -149,6 +149,7 @@ async function run() {
   let internalFailures = 0;
   let skippedTargets = 0;
   const startTime = Date.now();
+  const observationPromises: Array<Promise<void>> = [];
 
   // Probe agent metadata resolution if metadataUri is present
   for (const agent of processedAgents) {
