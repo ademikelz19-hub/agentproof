@@ -87,7 +87,7 @@ export default async function Home() {
             color: 'var(--text-primary)',
           }}
         >
-          Independent reliability evidence for autonomous onchain agents.
+          Verify if onchain AI agents are actually online and working.
         </h1>
 
         <p
@@ -100,9 +100,7 @@ export default async function Home() {
             margin: '0 auto 2rem',
           }}
         >
-          Registration proves an agent exists. <strong>AgentProof</strong> continuously and independently
-          measures whether its advertised services actually work — reachability, response latency, protocol validity,
-          and reviewer diversity without manufactured trust scores.
+          Anyone can register an AI bot on BNB Chain. <strong>AgentProof</strong> independently tests whether its advertised links, APIs, and tools actually work — measuring live uptime, response speeds, and real user reviews without fake scores.
         </p>
 
         <div
@@ -185,37 +183,37 @@ export default async function Home() {
           }}
         >
           <MetricCard
-            label="Monitored Agents"
+            label="Monitored AI Agents"
             value={totalAgents}
-            subvalue="ERC-8004 Registry"
-            description="Active autonomous agents tracked from BNB Chain onchain registry."
+            subvalue="ERC-8004 on BNB Chain"
+            description="Active autonomous agents discovered from the BNB Chain onchain registry."
             icon={Shield}
             accent="var(--accent-bnb)"
             tooltip="Count of distinct agents stored with onchain registry IDs."
           />
           <MetricCard
-            label="Observations Collected"
+            label="Health Checks Run"
             value={totalObservations.toLocaleString()}
-            subvalue="Append-Only Ledger"
-            description="SSRF-hardened probe measurements recorded to Postgres."
+            subvalue="Continuous Live Pings"
+            description="SSRF-hardened reachability, speed, and protocol tests recorded to Postgres."
             icon={Database}
             accent="var(--status-strong)"
             tooltip="Total individual reachability, latency, and protocol observations recorded."
           />
           <MetricCard
-            label="Registered Services"
+            label="Active Bot Endpoints"
             value={totalServices}
-            subvalue="HTTP, A2A, MCP"
-            description="Declared RPC, API, and agent-to-agent endpoints."
+            subvalue="APIs, RPCs & Tools"
+            description="Declared HTTP, agent-to-agent, and model capability endpoints."
             icon={Server}
             accent="var(--status-limited)"
             tooltip="Active service declarations extracted from agent metadata."
           />
           <MetricCard
-            label="Latest Probe Run"
+            label="Latest Health Check"
             value={latestRun?.finishedAt ? <TimeAgo timestamp={latestRun.finishedAt} /> : 'Active'}
             subvalue={latestRun?.finishedAt ? `Completed at ${new Date(latestRun.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC` : 'Hourly Cycle'}
-            description={`Targeted ${latestRun?.targetAgentCount ?? totalAgents} agents via autonomous GitHub runner.`}
+            description={`Tested ${latestRun?.targetAgentCount ?? totalAgents} agents via automated cloud runners.`}
             icon={Zap}
             accent="var(--status-moderate)"
             tooltip="Timestamp of the most recent autonomous cloud probe cycle."
@@ -228,10 +226,10 @@ export default async function Home() {
         <div className="card" style={{ padding: '2.5rem 2rem', background: 'var(--bg-surface-1)' }}>
           <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2.5rem' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-              From Identity to Verified Reliability
+              How AgentProof Verifies Autonomous AI Agents
             </h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Onchain identity is not proof of operational uptime. AgentProof bridges the gap between static declaration and live empirical evidence.
+              A bot being registered onchain doesn't mean it's online. AgentProof connects to its declared servers and measures whether it actually works.
             </p>
           </div>
 
@@ -261,13 +259,13 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                01 • REGISTERED
+                01 • ONCHAIN IDENTITY
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Onchain Identity
+                Bot Registers
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                An agent mints an ERC-8004 NFT on BNB Chain specifying metadata URI and wallet ownership.
+                A creator registers an AI agent on BNB Chain's public registry (ERC-8004) with its wallet ownership and metadata.
               </p>
             </div>
 
@@ -289,13 +287,13 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                02 • ADVERTISED
+                02 • ENDPOINTS DECLARED
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Declared Services
+                Links & APIs Shared
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Metadata resolves to declare HTTP endpoints, MCP tools, A2A communication, or model capabilities.
+                The bot advertises its public web addresses, APIs, RPCs, or agent-to-agent tools where other apps can contact it.
               </p>
             </div>
 
@@ -317,13 +315,13 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                03 • MEASURED
+                03 • AUTOMATED TESTING
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Autonomous Probing
+                Continuous Health Checks
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                AgentProof runs SSRF-hardened, rate-limited probes measuring DNS, latency, HTTP status, and response structure.
+                AgentProof runs secure cloud pings every hour — testing if the bot responds, measuring millisecond speed, and checking errors.
               </p>
             </div>
 
@@ -345,13 +343,13 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                04 • EVIDENCE
+                04 • LIVE REPORT CARD
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                 Reliability Passport
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Observations aggregate into 24h/7d/30d availability windows and neutral reviewer diversity signals.
+                All test results are permanently saved into an open report card with 24h/7d uptime percentages and review authenticity signals.
               </p>
             </div>
           </div>
@@ -360,13 +358,13 @@ export default async function Home() {
 
       {/* 4. Live Activity Stream */}
       <section style={{ marginBottom: '4rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Recent Probe Observations
+              Live Health Check Activity
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-              Latest empirical measurements collected across the BNB Chain agent cohort.
+              Real-time feed of recent test pings conducted on BNB Chain agents.
             </p>
           </div>
           <Link href="/agents" className="btn btn-secondary btn-sm">

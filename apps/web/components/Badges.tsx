@@ -20,18 +20,22 @@ export function SufficiencyBadge({ tier }: { tier: string }) {
     bg = 'var(--status-strong-bg)';
     color = 'var(--status-strong)';
     border = 'var(--status-strong-border)';
+    label = 'VERIFIED SAMPLE';
   } else if (tier === 'MODERATE') {
     bg = 'var(--status-moderate-bg)';
     color = 'var(--status-moderate)';
     border = 'var(--status-moderate-border)';
+    label = 'MODERATE SAMPLE';
   } else if (tier === 'LIMITED') {
     bg = 'var(--status-limited-bg)';
     color = 'var(--status-limited)';
     border = 'var(--status-limited-border)';
+    label = 'EARLY SAMPLE';
   } else if (tier === 'INSUFFICIENT') {
     bg = 'var(--status-warning-bg)';
     color = 'var(--status-warning)';
     border = 'var(--status-warning-border)';
+    label = 'NEW / TESTING';
   }
 
   return (
@@ -42,12 +46,12 @@ export function SufficiencyBadge({ tier }: { tier: string }) {
         color,
         border: `1px solid ${border}`,
         fontSize: '0.7rem',
-        letterSpacing: '0.05em'
+        letterSpacing: '0.04em'
       }}
-      title={`Evidence sufficiency: ${tier}. Describes sample maturity, not safety.`}
+      title={`Sample maturity: ${tier}. Reflects the number of test observations collected.`}
     >
       <ShieldCheck size={11} />
-      <span>{label} EVIDENCE</span>
+      <span>{label}</span>
     </span>
   );
 }
@@ -57,27 +61,44 @@ export function OutcomeBadge({ outcome }: { outcome: string }) {
   let color = '#94a3b8';
   let border = 'rgba(100, 116, 139, 0.3)';
   let icon = <HelpCircle size={11} />;
+  let label = outcome.replace(/_/g, ' ');
 
   if (outcome === 'SUCCESS' || outcome === 'REACHABLE') {
     bg = 'var(--status-success-bg)';
     color = 'var(--status-success)';
     border = 'var(--status-success-border)';
     icon = <CheckCircle2 size={11} />;
+    label = 'ONLINE';
   } else if (outcome === 'FAILURE' || outcome === 'AGENT_UNREACHABLE') {
     bg = 'var(--status-failure-bg)';
     color = 'var(--status-failure)';
     border = 'var(--status-failure-border)';
     icon = <XCircle size={11} />;
+    label = 'OFFLINE';
+  } else if (outcome === 'PROTOCOL_INVALID') {
+    bg = 'var(--status-warning-bg)';
+    color = 'var(--status-warning)';
+    border = 'var(--status-warning-border)';
+    icon = <AlertTriangle size={11} />;
+    label = 'INVALID DATA';
   } else if (outcome === 'TIMEOUT') {
     bg = 'var(--status-warning-bg)';
     color = 'var(--status-warning)';
     border = 'var(--status-warning-border)';
     icon = <Clock size={11} />;
+    label = 'TIMEOUT';
+  } else if (outcome === 'BLOCKED_BY_SECURITY_POLICY') {
+    bg = 'var(--status-failure-bg)';
+    color = 'var(--status-failure)';
+    border = 'var(--status-failure-border)';
+    icon = <XCircle size={11} />;
+    label = 'BLOCKED (SSRF)';
   } else if (outcome === 'NOT_INGESTED') {
     bg = 'rgba(100, 116, 139, 0.1)';
     color = '#64748b';
     border = '1px dashed rgba(100, 116, 139, 0.4)';
     icon = <Clock size={11} />;
+    label = 'PENDING';
   }
 
   return (
@@ -91,7 +112,7 @@ export function OutcomeBadge({ outcome }: { outcome: string }) {
       }}
     >
       {icon}
-      <span>{outcome.replace(/_/g, ' ')}</span>
+      <span>{label}</span>
     </span>
   );
 }
@@ -106,17 +127,17 @@ export function ProvenanceBadge({ source, origin }: { source: string; origin?: s
     bg = 'rgba(240, 185, 11, 0.12)';
     color = 'var(--accent-bnb)';
     border = 'var(--accent-bnb-border)';
-    label = 'AGENTPROOF MEASUREMENT';
+    label = 'LIVE TESTED';
   } else if (source === 'ONCHAIN') {
     bg = 'rgba(56, 189, 248, 0.1)';
     color = '#38bdf8';
     border = 'rgba(56, 189, 248, 0.25)';
-    label = 'ONCHAIN EVENT';
-  } else if (source === 'INDEXER') {
+    label = 'ONCHAIN RECORD';
+  } else if (source === 'INDEXER' || source === 'ERC8004_METADATA') {
     bg = 'rgba(129, 140, 248, 0.1)';
     color = '#818cf8';
     border = 'rgba(129, 140, 248, 0.25)';
-    label = `INDEXER (${origin ?? '8004scan'})`;
+    label = `REGISTRY (${origin ?? '8004scan'})`;
   }
 
   return (
@@ -129,7 +150,7 @@ export function ProvenanceBadge({ source, origin }: { source: string; origin?: s
         fontSize: '0.68rem',
         textTransform: 'none'
       }}
-      title={`Provenance: ${source}${origin ? ` via ${origin}` : ''}`}
+      title={`Data origin: ${source}${origin ? ` via ${origin}` : ''}`}
     >
       <Database size={10} />
       <span>{label}</span>

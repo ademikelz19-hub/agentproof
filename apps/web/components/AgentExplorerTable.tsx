@@ -107,21 +107,21 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
               onClick={() => setFilterMode('ALL')}
               className={`btn btn-sm ${filterMode === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
             >
-              All ({agents.length})
+              All Agents ({agents.length})
             </button>
             <button
               type="button"
               onClick={() => setFilterMode('WITH_SERVICES')}
               className={`btn btn-sm ${filterMode === 'WITH_SERVICES' ? 'btn-primary' : 'btn-secondary'}`}
             >
-              With Services
+              Has Endpoints
             </button>
             <button
               type="button"
               onClick={() => setFilterMode('RESOLVED')}
               className={`btn btn-sm ${filterMode === 'RESOLVED' ? 'btn-primary' : 'btn-secondary'}`}
             >
-              Resolved Metadata
+              Verified Metadata
             </button>
           </div>
         </div>
@@ -140,7 +140,7 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
         }}
       >
         <span>
-          Showing {filteredAgents.length} of {agents.length} monitored agents
+          Showing {filteredAgents.length} of {agents.length} monitored bots
         </span>
         <span>BNB Chain (56) • ERC-8004 Registry</span>
       </div>
@@ -155,7 +155,7 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
             color: 'var(--text-secondary)',
           }}
         >
-          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>No agents match your filter criteria.</p>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>No agents match your search.</p>
           <button
             type="button"
             onClick={() => {
@@ -172,12 +172,12 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Agent Identity</th>
-                <th>Onchain ID</th>
-                <th>Declared Services</th>
-                <th>Provenance Source</th>
-                <th>Last Observed</th>
-                <th style={{ textAlign: 'right' }}>Passport</th>
+                <th>Agent Name & ID</th>
+                <th>Onchain Token</th>
+                <th>Declared Endpoints</th>
+                <th>Data Origin</th>
+                <th>Last Checked</th>
+                <th style={{ textAlign: 'right' }}>Report Card</th>
               </tr>
             </thead>
             <tbody>
