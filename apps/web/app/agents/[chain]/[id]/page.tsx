@@ -347,7 +347,9 @@ export default async function AgentPassportPage({
           <div>
             <span style={{ color: 'var(--text-muted)' }}>First Tracked: </span>
             <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>
-              {new Date(agent.provenance.observedAt).toLocaleDateString()}
+              {agent.provenance?.observedAt && !isNaN(new Date(agent.provenance.observedAt).getTime())
+                ? new Date(agent.provenance.observedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                : 'Continuous'}
             </span>
           </div>
         </div>

@@ -98,6 +98,7 @@ export class DrizzleAgentRepository implements AgentRepository {
       .where(or(eq(schema.agents.id, normalized), eq(schema.agents.onchainId, bareOnchainId)))
       .limit(1);
     if (!row) return null;
+    const observedAt = row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString();
     return {
       agentId: row.id,
       ...(row.name ? { name: row.name } : {}),
@@ -107,7 +108,7 @@ export class DrizzleAgentRepository implements AgentRepository {
       provenance: {
         source: row.provenanceSource as AgentMetadata['provenance']['source'],
         origin: row.provenanceOrigin,
-        observedAt: row.lastIngestedAt.toISOString(),
+        observedAt,
       },
     };
   }
@@ -125,13 +126,14 @@ export class DrizzleAgentRepository implements AgentRepository {
       provenance: {
         source: r.provenanceSource as AgentService['provenance']['source'],
         origin: r.provenanceOrigin,
-        observedAt: r.createdAt.toISOString(),
+        observedAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
       },
     }));
   }
 }
 
 function rowToAgentIdentity(row: typeof schema.agents.$inferSelect): AgentIdentity {
+  const observedAt = row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString();
   return {
     id: row.id,
     chain: row.chain as ChainId,
@@ -140,7 +142,7 @@ function rowToAgentIdentity(row: typeof schema.agents.$inferSelect): AgentIdenti
     provenance: {
       source: row.provenanceSource as AgentIdentity['provenance']['source'],
       origin: row.provenanceOrigin,
-      observedAt: row.lastIngestedAt.toISOString(),
+      observedAt,
     },
   };
 }
@@ -203,13 +205,14 @@ export class DrizzleObservationRepository implements ObservationRepository {
 }
 
 function rowToObservation(row: typeof schema.observations.$inferSelect): ProbeObservation {
+  const timestampStr = row.timestamp ? new Date(row.timestamp).toISOString() : new Date().toISOString();
   return {
     id: row.id,
     agentId: row.agentId,
     chain: row.chain as ChainId,
     ...(row.serviceId ? { serviceId: row.serviceId } : {}),
     probeType: row.probeType as ProbeObservation['probeType'],
-    timestamp: row.timestamp.toISOString(),
+    timestamp: timestampStr,
     outcome: row.outcome as ProbeObservation['outcome'],
     ...(row.latencyMs !== null ? { latencyMs: row.latencyMs } : {}),
     ...(row.httpStatus !== null ? { httpStatus: row.httpStatus } : {}),
@@ -217,7 +220,7 @@ function rowToObservation(row: typeof schema.observations.$inferSelect): ProbeOb
     provenance: {
       source: row.provenanceSource as ProbeObservation['provenance']['source'],
       origin: row.provenanceOrigin,
-      observedAt: row.timestamp.toISOString(),
+      observedAt: timestampStr,
     },
     probeVersion: row.probeVersion,
     methodologyVersion: row.methodologyVersion,
