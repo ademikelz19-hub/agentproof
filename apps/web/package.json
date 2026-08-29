@@ -14,6 +14,7 @@
     "@agentproof/core": "0.1.0",
     "@agentproof/reliability": "0.1.0",
     "@agentproof/reputation": "0.1.0",
+    "dotenv": "^17.4.2",
     "next": "^16.3.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

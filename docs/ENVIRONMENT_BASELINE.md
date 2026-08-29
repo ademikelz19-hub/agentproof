@@ -68,3 +68,18 @@ the real interface/schema (so it's a drop-in once network access exists),
 committed, and explicitly labeled `BLOCKED` in code comments and in
 `docs/BNB_GRANT_EVIDENCE.md` — never faked with synthetic data standing in
 for live results.
+
+---
+
+## Laptop Environment Verification (Added 2026-08-28)
+
+The project has been migrated to the owner's laptop with normal network access. The following diagnostics verify real network connectivity:
+
+| Destination | Status | Details / Result |
+|---|---|---|
+| `https://8004scan.io` | ✅ Reachable | HTTP 200 |
+| `bsc-dataseed.binance.org` (BNB Chain RPC) | ✅ Reachable | JSON-RPC blockNumber: `0x711d8e6` |
+| `api.bscscan.com` | ✅ Reachable | Upstream API returned: V2 migration deprecation warning |
+| `github.com` | ✅ Reachable | DNS resolves and Git CLI connects |
+
+All network restrictions are officially verified as lifted.

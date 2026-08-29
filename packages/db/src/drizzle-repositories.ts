@@ -25,6 +25,7 @@ import type {
   AgentService,
   ChainId,
   FeedbackQueryResult,
+  FeedbackRecord,
   IntegritySignal,
   ObservationRepository,
   Page,
@@ -201,16 +202,63 @@ function rowToObservation(row: typeof schema.observations.$inferSelect): ProbeOb
 export class DrizzleReputationRepository implements ReputationRepository {
   constructor(private readonly db: AnyDb) {}
 
-  async listFeedback(_agentId: string): Promise<FeedbackQueryResult> {
-    // No feedback-ingestion table exists yet in schema.ts — feedback
-    // would arrive from the same indexer sources as agent metadata, and
-    // that ingestion path is itself BLOCKED_LIVE_NETWORK (see
-    // docs/ENVIRONMENT_BASELINE.md). Returns status: 'NOT_INGESTED' —
-    // NOT an AVAILABLE result with zero records — so callers can never
-    // mistake "we haven't built this yet" for "we checked and there's
-    // nothing." See docs/REPUTATION_INTEGRITY.md "Feedback availability
-    // semantics".
-    return { status: 'NOT_INGESTED', records: [] };
+  /**
+   * Fetches live feedback for this agent from the 8004scan /feedbacks endpoint.
+   *
+   * agentId is in AgentProof format "bsc:<tokenId>" — we extract the numeric
+   * tokenId and query: GET /feedbacks?chainId=56&tokenId=<id>
+   *
+   * Returns:
+   *   AVAILABLE            — fetch succeeded (zero or more records)
+   *   UPSTREAM_UNAVAILABLE — fetch failed (network error, non-2xx, parse error)
+   *   NOT_INGESTED         — agentId format unrecognised (can't derive tokenId)
+   *
+   * See docs/REPUTATION_INTEGRITY.md "Feedback availability semantics".
+   */
+  async listFeedback(agentId: string): Promise<FeedbackQueryResult> {
+    // Extract numeric tokenId from "bsc:12345" format
+    const match = /^bsc:(\d+)$/.exec(agentId);
+    if (!match) {
+      return { status: 'NOT_INGESTED', records: [] };
+    }
+    const tokenId = match[1];
+    const apiKey = process.env['EIGHT_O_FOUR_API_KEY'];
+    if (!apiKey) {
+      return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+    }
+    const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=56&tokenId=${tokenId}&limit=100`;
+
+    try {
+      const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
+      if (!res.ok) return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+
+      const body = (await res.json()) as {
+        success: boolean;
+        data?: Array<{
+          user_address?: string;
+          submitted_at?: string;
+        }>;
+      };
+      if (!body.success || !Array.isArray(body.data)) {
+        return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+      }
+
+      const observedAt = new Date().toISOString();
+      const records: FeedbackRecord[] = body.data.map((raw) => ({
+        agentId,
+        reviewerId: raw.user_address ?? 'unknown',
+        timestamp: raw.submitted_at ?? observedAt,
+        provenance: {
+          source: 'INDEXER' as const,
+          origin: url,
+          observedAt,
+        },
+      }));
+
+      return { status: 'AVAILABLE', records };
+    } catch {
+      return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+    }
   }
 
   async recordReputationEvidence(evidence: ReputationEvidence): Promise<void> {

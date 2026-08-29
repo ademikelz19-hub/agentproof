@@ -75,13 +75,16 @@ export function parseExternalJsonText<T>(
 
 const rawServiceSchema = z.object({
   id: z.string().optional(),
+  name: z.string().optional(),
   type: z.string().optional(),
   protocol: z.string().optional(),
-  url: z.string(),
+  url: z.string().optional(),
+  endpoint: z.string().optional(),
 });
 
 const rawEndpointSchema = z.object({
   id: z.string().optional(),
+  name: z.string().optional(),
   type: z.string().optional(),
   url: z.string().optional(),
   endpoint: z.string().optional(),

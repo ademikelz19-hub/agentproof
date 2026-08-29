@@ -12,11 +12,11 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentService, ChainId, Provenance, RawAgentMetadata, ServiceProtocol } from '@agentproof/core';
 
-function inferProtocol(raw: { type?: string | undefined; protocol?: string | undefined }): ServiceProtocol {
-  const label = (raw.protocol ?? raw.type ?? '').toUpperCase();
+function inferProtocol(raw: { type?: string; protocol?: string; name?: string }): ServiceProtocol {
+  const label = (raw.protocol ?? raw.type ?? raw.name ?? '').toUpperCase();
   if (label.includes('A2A')) return 'A2A';
   if (label.includes('MCP')) return 'MCP';
-  if (label.includes('HTTP')) return 'HTTP';
+  if (label.includes('HTTP') || label.includes('WEB')) return 'HTTP';
   return 'UNKNOWN';
 }
 
@@ -29,15 +29,26 @@ export function normalizeAgentServices(
   const hasServices = Array.isArray(raw.services) && raw.services.length > 0;
 
   if (hasServices) {
-    return (raw.services ?? []).map((svc) => ({
-      id: svc.id ?? randomUUID(),
-      agentId,
-      chain,
-      declarationForm: 'SERVICES' as const,
-      protocol: inferProtocol(svc),
-      url: svc.url,
-      provenance,
-    }));
+    const out: AgentService[] = [];
+    for (const svc of raw.services ?? []) {
+      const url = svc.url ?? svc.endpoint;
+      if (!url) continue;
+      const rawId = svc.id ?? svc.name ?? randomUUID();
+      out.push({
+        id: `${agentId}:${rawId}`,
+        agentId,
+        chain,
+        declarationForm: 'SERVICES' as const,
+        protocol: inferProtocol({
+          ...(svc.type ? { type: svc.type } : {}),
+          ...(svc.protocol ? { protocol: svc.protocol } : {}),
+          ...(svc.name ? { name: svc.name } : {}),
+        }),
+        url,
+        provenance,
+      });
+    }
+    return out;
   }
 
   const endpoints = raw.endpoints ?? [];
@@ -45,12 +56,16 @@ export function normalizeAgentServices(
   for (const ep of endpoints) {
     const url = ep.url ?? ep.endpoint;
     if (!url) continue; // never invent a URL that wasn't actually declared
+    const rawId = ep.id ?? ep.name ?? randomUUID();
     out.push({
-      id: ep.id ?? randomUUID(),
+      id: `${agentId}:${rawId}`,
       agentId,
       chain,
       declarationForm: 'ENDPOINTS' as const,
-      protocol: inferProtocol(ep),
+      protocol: inferProtocol({
+        ...(ep.type ? { type: ep.type } : {}),
+        ...(ep.name ? { name: ep.name } : {}),
+      }),
       url,
       provenance,
     });

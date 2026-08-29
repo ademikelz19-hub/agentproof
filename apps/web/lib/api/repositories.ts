@@ -1,30 +1,29 @@
 /**
  * Central place the API routes get their repositories from.
  *
- * STATUS: no database is deployed yet (Phase D/G do not require one — see
- * docs/ENVIRONMENT_BASELINE.md). These in-memory repositories start empty
- * and stay empty in this environment: every route reads real (if currently
- * zero) data through the same interfaces a real database would satisfy,
- * rather than special-casing "no DB" with fabricated responses anywhere.
+ * STATUS: Connected to Neon Postgres (project: red-paper-73359363).
+ * Drizzle repositories are wired up using the singleton pool in
+ * packages/db/src/db-client.ts. The connection string is read from
+ * DATABASE_URL in .env.local (pooled via PgBouncer for query traffic).
  *
- * When a real Postgres connection is available and
- * `packages/db`'s Drizzle repositories have been verified against it,
- * swap the three `new InMemory...Repository()` calls below for
- * `new Drizzle...Repository(db)` — no route handler code needs to change,
- * since they only depend on the @agentproof/core interfaces.
+ * If DATABASE_URL is not set the db-client module will throw at import
+ * time with a clear message so startup failure is obvious.
+ *
+ * Migrations are run separately via:
+ *   npx drizzle-kit migrate
+ * using DATABASE_URL_UNPOOLED (direct connection required for DDL).
  */
 
+import { db } from '@agentproof/db';
 import {
-  InMemoryAgentRepository,
-  InMemoryObservationRepository,
-  InMemoryReputationRepository,
-} from '@agentproof/core';
+  DrizzleAgentRepository,
+  DrizzleObservationRepository,
+  DrizzleReputationRepository,
+} from '@agentproof/db';
 
-export const agentRepository = new InMemoryAgentRepository();
-export const observationRepository = new InMemoryObservationRepository();
-// Explicit 'NOT_INGESTED' (also the constructor default, spelled out here
-// for clarity): no feedback-ingestion pipeline exists yet, so every
-// reputation-integrity route/page honestly reports "not yet ingested"
-// rather than "checked and found zero." See
-// docs/REPUTATION_INTEGRITY.md "Feedback availability semantics".
-export const reputationRepository = new InMemoryReputationRepository([], 'NOT_INGESTED');
+export const agentRepository = new DrizzleAgentRepository(db);
+export const observationRepository = new DrizzleObservationRepository(db);
+// DrizzleReputationRepository.listFeedback() returns NOT_INGESTED until
+// a feedback-ingestion pipeline is built — identical semantics to the
+// old InMemoryReputationRepository but backed by a real DB for writes.
+export const reputationRepository = new DrizzleReputationRepository(db);
