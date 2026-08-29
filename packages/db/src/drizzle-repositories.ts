@@ -222,7 +222,7 @@ export class DrizzleReputationRepository implements ReputationRepository {
       return { status: 'NOT_INGESTED', records: [] };
     }
     const tokenId = match[1];
-    const apiKey = process.env['EIGHT_O_FOUR_API_KEY'];
+    const apiKey = process.env['EIGHT004SCAN_API_KEY'] ?? process.env['EIGHT_O_FOUR_API_KEY'];
     if (!apiKey) {
       return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
     }

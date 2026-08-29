@@ -25,9 +25,9 @@ import * as path from 'path';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const API_KEY = process.env.EIGHT_O_FOUR_API_KEY;
+const API_KEY = process.env.EIGHT004SCAN_API_KEY ?? process.env.EIGHT_O_FOUR_API_KEY;
 if (!API_KEY) {
-  throw new Error('EIGHT_O_FOUR_API_KEY is not set in environment or .env.local');
+  throw new Error('EIGHT004SCAN_API_KEY or EIGHT_O_FOUR_API_KEY is not set in environment or .env.local');
 }
 const CHAIN_ID = 56;
 const FEEDBACKS_URL = `https://8004scan.io/api/v1/public/feedbacks?chainId=${CHAIN_ID}&limit=100`;

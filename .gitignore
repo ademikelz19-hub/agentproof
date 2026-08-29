@@ -9,3 +9,7 @@ dist
 .turbo
 scratch
 .agents
+*.tsbuildinfo
+
+.vercel
+.env*
