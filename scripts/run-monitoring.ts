@@ -17,6 +17,21 @@ import * as path from 'path';
 // Load environment variables from .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
+/**
+ * Priority cohort — well-known agents guaranteed to be included in every
+ * monitoring run regardless of what the live API paginates. These agents
+ * have real human reviews on 8004scan and serve as credibility anchors.
+ */
+const PRIORITY_AGENT_IDS: string[] = [
+  'bsc:2142',   // @heyibinance · Ensoul (6 reviews)
+  'bsc:2518',   // @pancakeswap · Ensoul (6 reviews)
+  'bsc:31032',  // @evilcos · Ensoul (6 reviews)
+  'bsc:31039',  // @blknoiz06 · Ensoul (6 reviews)
+  'bsc:2383',   // @realDonaldTrump · Ensoul (3 reviews)
+  'bsc:49637',  // OpenOdds.Ai (3 reviews)
+  'bsc:2387',   // @sibeleth · Ensoul (6 reviews)
+];
+
 async function run() {
   console.log('--- Starting AgentProof Ingestion & Monitoring Run ---');
   
@@ -28,15 +43,33 @@ async function run() {
   const adapter = new EightOFourScanAdapter();
   console.log('Fetching agents from 8004scan...');
   
-  // Start with a small cohort of agents to ingest & monitor safely
+  // Fetch the newest cohort from 8004scan
   const listResult = await adapter.listAgents({ limit: 50 });
   if (!listResult.ok) {
     console.error('Failed to list agents from 8004scan:', listResult.detail);
     process.exit(1);
   }
 
-  const discoveredAgents = listResult.data;
-  console.log(`Discovered ${discoveredAgents.length} BSC agents from indexer.`);
+  // Merge priority anchors + live-discovered agents (deduplicated by id)
+  const discoveredSet = new Map(listResult.data.map((a) => [a.id, a]));
+  for (const priorityId of PRIORITY_AGENT_IDS) {
+    if (!discoveredSet.has(priorityId)) {
+      const tokenId = priorityId.split(':')[1]!;
+      discoveredSet.set(priorityId, {
+        id: priorityId,
+        chain: BSC.id,
+        onchainId: tokenId,
+        registryAddress: '0x8004a169fb4a3325136eb29fa0ceb6d2e539a432',
+        provenance: {
+          source: 'INDEXER' as const,
+          origin: '8004scan-priority-cohort',
+          observedAt: new Date().toISOString(),
+        },
+      });
+    }
+  }
+  const discoveredAgents = Array.from(discoveredSet.values());
+  console.log(`Discovered ${discoveredAgents.length} BSC agents (${PRIORITY_AGENT_IDS.length} priority + live cohort).`);
 
   // 2. Ingest metadata and services into the database
   const activeServices: typeof services.$inferSelect[] = [];

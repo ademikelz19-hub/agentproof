@@ -6,6 +6,7 @@ import { SafeExternalLink } from '@/components/SafeExternalLink';
 import { CopyButton } from '@/components/CopyButton';
 import { SufficiencyBadge, OutcomeBadge, ProtocolBadge, ProvenanceBadge } from '@/components/Badges';
 import { ReliabilityTimeline } from '@/components/ReliabilityTimeline';
+import { UptimeHistoryGraph } from '@/components/UptimeHistoryGraph';
 import type { ChainId, ReliabilityWindow } from '@agentproof/core';
 import Link from 'next/link';
 import {
@@ -400,6 +401,8 @@ export default async function AgentPassportPage({
             History of automated health checks showing response times in milliseconds.
           </p>
         </div>
+
+        <UptimeHistoryGraph observations={observationsPage.items} />
 
         <ReliabilityTimeline
           observations={observationsPage.items}
