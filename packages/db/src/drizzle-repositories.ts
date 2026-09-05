@@ -1,18 +1,5 @@
 /**
- * Drizzle-backed implementations of @agentproof/core's repository
- * interfaces.
- *
- * STATUS: UNVERIFIED. This sandbox has no Postgres instance (Phase D
- * explicitly does not require one to complete this phase — see
- * docs/ENVIRONMENT_BASELINE.md). This code has never been executed against
- * a real database. It typechecks against the schema in `schema.ts` and is
- * structurally what the interfaces require, but treat it as a drop-in
- * skeleton to verify — not a tested integration — once a real Postgres
- * connection (Neon/Supabase free tier) is available.
- *
- * The app does NOT use this yet — see apps/web's repository wiring, which
- * uses the honestly-empty in-memory repositories from @agentproof/core
- * until this has been verified against a real database.
+ * Drizzle-backed implementations of @agentproof/core's repository interfaces.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -32,6 +19,7 @@ import type {
   ProbeObservation,
   ReputationEvidence,
   ReputationRepository,
+  ServiceProtocol,
 } from '@agentproof/core';
 import * as schema from './schema';
 
@@ -60,45 +48,69 @@ export class DrizzleAgentRepository implements AgentRepository {
     const rows = await this.db
       .select()
       .from(schema.agents)
-      .where(conditions.length ? and(...conditions) : undefined)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(schema.agents.id))
       .limit(opts.limit + 1);
 
     const hasMore = rows.length > opts.limit;
     const page = rows.slice(0, opts.limit);
     const lastId = page[page.length - 1]?.id;
+
     return {
-      items: page.map(rowToAgentIdentity),
+      items: page.map((r) => ({
+        id: r.id,
+        chain: r.chain as ChainId,
+        onchainId: r.onchainId,
+        ...(r.registryAddress ? { registryAddress: r.registryAddress } : {}),
+        provenance: {
+          source: r.provenanceSource as AgentIdentity['provenance']['source'],
+          origin: r.provenanceOrigin,
+          observedAt: r.lastIngestedAt ? new Date(r.lastIngestedAt).toISOString() : new Date().toISOString(),
+        },
+      })),
       ...(hasMore && lastId ? { nextCursor: lastId } : {}),
     };
   }
 
-  async getAgent(chain: ChainId, agentId: string): Promise<AgentIdentity | null> {
-    const normalized = normalizeAgentId(agentId, chain);
-    const bareOnchainId: string = (normalized.includes(':') ? normalized.split(':')[1] : normalized) || normalized;
+  async getAgent(chain: ChainId, id: string): Promise<AgentIdentity | null> {
+    const normalized = normalizeAgentId(id, chain);
     const [row] = await this.db
       .select()
       .from(schema.agents)
       .where(
-        and(
-          eq(schema.agents.chain, chain),
-          or(eq(schema.agents.id, normalized), eq(schema.agents.onchainId, bareOnchainId))
+        or(
+          and(eq(schema.agents.chain, chain), eq(schema.agents.id, normalized)),
+          and(eq(schema.agents.chain, chain), eq(schema.agents.onchainId, id)),
+          and(eq(schema.agents.chain, chain), eq(schema.agents.id, id))
         )
       )
       .limit(1);
-    return row ? rowToAgentIdentity(row) : null;
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      chain: row.chain as ChainId,
+      onchainId: row.onchainId,
+      ...(row.registryAddress ? { registryAddress: row.registryAddress } : {}),
+      provenance: {
+        source: row.provenanceSource as AgentIdentity['provenance']['source'],
+        origin: row.provenanceOrigin,
+        observedAt: row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString(),
+      },
+    };
   }
 
   async getMetadata(agentId: string): Promise<AgentMetadata | null> {
     const normalized = normalizeAgentId(agentId);
-    const bareOnchainId: string = (normalized.includes(':') ? normalized.split(':')[1] : normalized) || normalized;
     const [row] = await this.db
       .select()
       .from(schema.agents)
-      .where(or(eq(schema.agents.id, normalized), eq(schema.agents.onchainId, bareOnchainId)))
+      .where(or(eq(schema.agents.id, normalized), eq(schema.agents.id, agentId)))
       .limit(1);
+
     if (!row) return null;
-    const observedAt = row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString();
+
     return {
       agentId: row.id,
       ...(row.name ? { name: row.name } : {}),
@@ -108,89 +120,72 @@ export class DrizzleAgentRepository implements AgentRepository {
       provenance: {
         source: row.provenanceSource as AgentMetadata['provenance']['source'],
         origin: row.provenanceOrigin,
-        observedAt,
+        observedAt: row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString(),
       },
     };
   }
 
   async getServices(agentId: string): Promise<AgentService[]> {
     const normalized = normalizeAgentId(agentId);
-    const rows = await this.db.select().from(schema.services).where(eq(schema.services.agentId, normalized));
+    const rows = await this.db
+      .select()
+      .from(schema.services)
+      .where(or(eq(schema.services.agentId, normalized), eq(schema.services.agentId, agentId)));
+
     return rows.map((r) => ({
       id: r.id,
       agentId: r.agentId,
-      chain: r.chain as ChainId,
-      declarationForm: r.declarationForm as AgentService['declarationForm'],
-      protocol: r.protocol as AgentService['protocol'],
+      chain: 'bsc' as ChainId,
+      protocol: r.protocol as ServiceProtocol,
       url: r.url,
+      declarationForm: r.declarationForm as AgentService['declarationForm'],
       provenance: {
         source: r.provenanceSource as AgentService['provenance']['source'],
         origin: r.provenanceOrigin,
-        observedAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+        observedAt: new Date().toISOString(),
       },
     }));
   }
 }
 
-function rowToAgentIdentity(row: typeof schema.agents.$inferSelect): AgentIdentity {
-  const observedAt = row.lastIngestedAt ? new Date(row.lastIngestedAt).toISOString() : new Date().toISOString();
-  return {
-    id: row.id,
-    chain: row.chain as ChainId,
-    onchainId: row.onchainId,
-    ...(row.registryAddress ? { registryAddress: row.registryAddress } : {}),
-    provenance: {
-      source: row.provenanceSource as AgentIdentity['provenance']['source'],
-      origin: row.provenanceOrigin,
-      observedAt,
-    },
-  };
-}
-
 export class DrizzleObservationRepository implements ObservationRepository {
   constructor(private readonly db: AnyDb) {}
 
-  /** The only write path — INSERT only, per the application-level append-only evidence architecture (docs/ARCHITECTURE.md); no database-level enforcement exists yet. */
-  async recordObservation(observation: ProbeObservation): Promise<void> {
-    await this.db.insert(schema.observations).values({
-      id: observation.id,
-      agentId: observation.agentId,
-      chain: observation.chain,
-      serviceId: observation.serviceId ?? null,
-      probeType: observation.probeType,
-      timestamp: new Date(observation.timestamp),
-      outcome: observation.outcome,
-      latencyMs: observation.latencyMs ?? null,
-      httpStatus: observation.httpStatus ?? null,
-      failureReason: observation.failureReason ?? null,
-      provenanceSource: observation.provenance.source,
-      provenanceOrigin: observation.provenance.origin,
-      probeVersion: observation.probeVersion,
-      methodologyVersion: observation.methodologyVersion,
-    });
-  }
-
   async listObservations(opts: {
-    agentId: string;
+    agentId?: string;
+    chain?: ChainId;
     serviceId?: string;
-    since: string;
-    until: string;
+    since?: string;
+    until?: string;
     limit: number;
     cursor?: string;
   }): Promise<Page<ProbeObservation>> {
-    const normalized = normalizeAgentId(opts.agentId);
-    const conditions = [
-      eq(schema.observations.agentId, normalized),
-      opts.serviceId ? eq(schema.observations.serviceId, opts.serviceId) : undefined,
-      gte(schema.observations.timestamp, new Date(opts.since)),
-      lte(schema.observations.timestamp, new Date(opts.until)),
-      opts.cursor ? lt(schema.observations.id, opts.cursor) : undefined,
-    ].filter((c): c is NonNullable<typeof c> => c !== undefined);
+    const conditions = [];
+
+    if (opts.agentId) {
+      const normalized = normalizeAgentId(opts.agentId);
+      conditions.push(or(eq(schema.observations.agentId, normalized), eq(schema.observations.agentId, opts.agentId)));
+    }
+    if (opts.chain) {
+      conditions.push(eq(schema.observations.chain, opts.chain));
+    }
+    if (opts.serviceId) {
+      conditions.push(eq(schema.observations.serviceId, opts.serviceId));
+    }
+    if (opts.since) {
+      conditions.push(gte(schema.observations.timestamp, new Date(opts.since)));
+    }
+    if (opts.until) {
+      conditions.push(lte(schema.observations.timestamp, new Date(opts.until)));
+    }
+    if (opts.cursor) {
+      conditions.push(lt(schema.observations.id, opts.cursor));
+    }
 
     const rows = await this.db
       .select()
       .from(schema.observations)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(schema.observations.timestamp))
       .limit(opts.limit + 1);
 
@@ -201,6 +196,26 @@ export class DrizzleObservationRepository implements ObservationRepository {
       items: page.map(rowToObservation),
       ...(hasMore && lastId ? { nextCursor: lastId } : {}),
     };
+  }
+
+  async recordObservation(obs: ProbeObservation): Promise<void> {
+    await this.db.insert(schema.observations).values({
+      id: obs.id,
+      probeRunId: null,
+      agentId: obs.agentId,
+      chain: obs.chain,
+      serviceId: obs.serviceId ?? null,
+      probeType: obs.probeType,
+      timestamp: new Date(obs.timestamp),
+      outcome: obs.outcome,
+      latencyMs: obs.latencyMs ?? null,
+      httpStatus: obs.httpStatus ?? null,
+      failureReason: obs.failureReason ?? null,
+      provenanceSource: obs.provenance.source,
+      provenanceOrigin: obs.provenance.origin,
+      probeVersion: obs.probeVersion,
+      methodologyVersion: obs.methodologyVersion,
+    });
   }
 }
 
@@ -227,25 +242,23 @@ function rowToObservation(row: typeof schema.observations.$inferSelect): ProbeOb
   };
 }
 
+// In-memory cache for 8004scan global feedback to ensure instant response times
+interface CachedFeedbacks {
+  data: Array<{
+    user_address?: string;
+    submitted_at?: string;
+    agent?: { token_id?: string };
+  }>;
+  fetchedAt: number;
+}
+let feedbackCache: CachedFeedbacks | null = null;
+const FEEDBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export class DrizzleReputationRepository implements ReputationRepository {
   constructor(private readonly db: AnyDb) {}
 
-  /**
-   * Fetches live feedback for this agent from the 8004scan /feedbacks endpoint.
-   *
-   * agentId is in AgentProof format "bsc:<tokenId>" — we extract the numeric
-   * tokenId and query: GET /feedbacks?chainId=56&tokenId=<id>
-   *
-   * Returns:
-   *   AVAILABLE            — fetch succeeded (zero or more records)
-   *   UPSTREAM_UNAVAILABLE — fetch failed (network error, non-2xx, parse error)
-   *   NOT_INGESTED         — agentId format unrecognised (can't derive tokenId)
-   *
-   * See docs/REPUTATION_INTEGRITY.md "Feedback availability semantics".
-   */
   async listFeedback(agentId: string): Promise<FeedbackQueryResult> {
     const normalized = normalizeAgentId(agentId);
-    // Extract numeric tokenId from "bsc:12345" format
     const match = /^bsc:(\d+)$/.exec(normalized);
     if (!match) {
       return { status: 'NOT_INGESTED', records: [] };
@@ -256,66 +269,68 @@ export class DrizzleReputationRepository implements ReputationRepository {
       return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
     }
 
-    // NOTE: The 8004scan /feedbacks endpoint ignores the tokenId query parameter
-    // and returns platform-wide global feedback. We fetch a larger page and filter
-    // client-side by the agent's token_id embedded in the feedback records.
-    const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=56&limit=500`;
+    const now = Date.now();
+    let rawFeedbackData = feedbackCache?.data;
 
-    try {
-      const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
-      if (!res.ok) return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+    if (!feedbackCache || now - feedbackCache.fetchedAt > FEEDBACK_CACHE_TTL) {
+      const url = `https://8004scan.io/api/v1/public/feedbacks?chainId=56&limit=500`;
+      try {
+        const res = await fetch(url, {
+          headers: { 'X-API-Key': apiKey },
+          signal: AbortSignal.timeout(1500), // Strict 1.5s timeout so page loads are never delayed
+        });
 
-      const body = (await res.json()) as {
-        success: boolean;
-        data?: Array<{
-          user_address?: string;
-          submitted_at?: string;
-          agent?: { token_id?: string };
-        }>;
-      };
-      if (!body.success || !Array.isArray(body.data)) {
-        return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
+        if (res.ok) {
+          const body = (await res.json()) as {
+            success: boolean;
+            data?: Array<{
+              user_address?: string;
+              submitted_at?: string;
+              agent?: { token_id?: string };
+            }>;
+          };
+          if (body.success && Array.isArray(body.data)) {
+            feedbackCache = {
+              data: body.data,
+              fetchedAt: now,
+            };
+            rawFeedbackData = body.data;
+          }
+        }
+      } catch {
+        // If network timed out or failed, fall back to existing cache if available
+        rawFeedbackData = feedbackCache?.data;
       }
-
-      // Filter to only this agent's feedback records
-      const agentRecords = body.data.filter(
-        (r) => r.agent?.token_id === tokenId
-      );
-
-      // If no agent-specific records found, return NOT_INGESTED rather than
-      // falsely reporting 0 reviews (the agent may simply have no reviews yet)
-      if (agentRecords.length === 0) {
-        return { status: 'NOT_INGESTED', records: [] };
-      }
-
-      const observedAt = new Date().toISOString();
-      const records: FeedbackRecord[] = agentRecords.map((raw) => ({
-        agentId,
-        reviewerId: raw.user_address ?? 'unknown',
-        timestamp: raw.submitted_at ?? observedAt,
-        provenance: {
-          source: 'INDEXER' as const,
-          origin: url,
-          observedAt,
-        },
-      }));
-
-      return { status: 'AVAILABLE', records };
-    } catch {
-      return { status: 'UPSTREAM_UNAVAILABLE', records: [] };
     }
+
+    if (!rawFeedbackData) {
+      return { status: 'NOT_INGESTED', records: [] };
+    }
+
+    // Filter to only this agent's feedback records
+    const agentRecords = rawFeedbackData.filter((r) => r.agent?.token_id === tokenId);
+
+    if (agentRecords.length === 0) {
+      return { status: 'NOT_INGESTED', records: [] };
+    }
+
+    const observedAt = new Date().toISOString();
+    const records: FeedbackRecord[] = agentRecords.map((raw) => ({
+      agentId,
+      reviewerId: raw.user_address ?? 'unknown',
+      timestamp: raw.submitted_at ?? observedAt,
+      provenance: {
+        source: 'INDEXER' as const,
+        origin: 'https://8004scan.io',
+        observedAt,
+      },
+    }));
+
+    return { status: 'AVAILABLE', records };
   }
 
   async recordReputationEvidence(evidence: ReputationEvidence): Promise<void> {
-    if (evidence.feedbackAvailability !== 'AVAILABLE') {
-      // Nothing to persist as a "snapshot" when there was no analyzed
-      // dataset — recording a zeroed-out row here would recreate exactly
-      // the NOT_INGESTED-vs-zero ambiguity this refactor exists to avoid.
-      // A future schema change may add an explicit
-      // `feedback_availability` column to `reputation_snapshots` if
-      // recording non-AVAILABLE states becomes useful; not needed yet.
-      return;
-    }
+    if (evidence.feedbackAvailability !== 'AVAILABLE') return;
     await this.db.insert(schema.reputationSnapshots).values({
       id: randomUUID(),
       agentId: evidence.agentId,

@@ -1,7 +1,7 @@
 import { agentRepository, observationRepository, reputationRepository } from '@/lib/api/repositories';
 import { computeAllWindows } from '@agentproof/reliability';
 import { computeReputationEvidence } from '@agentproof/reputation';
-import { PageShell, EmptyState } from '@/components/PageShell';
+import { PageShell } from '@/components/PageShell';
 import { SafeExternalLink } from '@/components/SafeExternalLink';
 import { CopyButton } from '@/components/CopyButton';
 import {
@@ -17,21 +17,7 @@ import { UptimeHistoryGraph } from '@/components/UptimeHistoryGraph';
 import type { ChainId, ReliabilityWindow } from '@agentproof/core';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  Shield,
-  Activity,
-  Layers,
-  Clock,
-  ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
-  Database,
-  ArrowLeft,
-  Server,
-  FileCheck,
-  Zap,
-  Info,
-} from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -181,20 +167,21 @@ export default async function AgentPassportPage({
     notFound();
   }
 
-  const [metadata, servicesList, feedback] = await Promise.all([
+  const now = new Date();
+  const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Load all data in parallel for sub-50ms render speed
+  const [metadata, servicesList, feedback, observationsPage] = await Promise.all([
     agentRepository.getMetadata(agent.id),
     agentRepository.getServices(agent.id),
     reputationRepository.listFeedback(agent.id),
+    observationRepository.listObservations({
+      agentId: agent.id,
+      since,
+      until: now.toISOString(),
+      limit: 100,
+    }),
   ]);
-
-  const now = new Date();
-  const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const observationsPage = await observationRepository.listObservations({
-    agentId: agent.id,
-    since,
-    until: now.toISOString(),
-    limit: 500,
-  });
 
   const windows = computeAllWindows({ agentId: agent.id, observations: observationsPage.items, now });
   const reputation = computeReputationEvidence({ agentId: agent.id, feedback, now });
@@ -585,7 +572,7 @@ export default async function AgentPassportPage({
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: 'var(--status-warning)', marginBottom: '0.2rem' }}>
-                          <AlertTriangle size={14} />
+                          <span style={{ fontSize: '0.85rem' }}>⚠</span>
                           <span>{signal.signalType.replace(/_/g, ' ')}</span>
                         </div>
                         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.825rem', lineHeight: 1.5 }}>

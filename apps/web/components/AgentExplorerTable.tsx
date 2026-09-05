@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, ArrowUpRight, ChevronLeft, ChevronRight, Activity, Database, CheckCircle2, Shield } from 'lucide-react';
+import { Search, ArrowUpRight, ChevronLeft, ChevronRight, Activity, Database, CheckCircle2, Zap, Clock, Shield } from 'lucide-react';
 import { CopyButton } from './CopyButton';
 import { ProtocolBadge, ProvenanceBadge, MonitoringStatusBadge, MetadataStatusBadge } from './Badges';
 import type { AgentIdentity } from '@agentproof/core';
@@ -16,6 +16,9 @@ export interface AgentListItem extends AgentIdentity {
   lastIngestedAt?: string | Date;
   isMonitored?: boolean;
   observationCount?: number;
+  availabilityPct?: number | null;
+  latestOutcome?: string;
+  latestLatencyMs?: number;
 }
 
 const PAGE_SIZE = 25;
@@ -105,7 +108,7 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
             </div>
             <input
               type="text"
-              placeholder="Search by Token ID (#316380), Name, or Keyword..."
+              placeholder="Search by Token ID (#2518), Name, or Keyword..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -216,13 +219,13 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
         </div>
       ) : (
         <>
-          {/* Desktop Table View (Hidden on mobile < 768px via CSS) */}
+          {/* Desktop Table View */}
           <div className="table-container desktop-only">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Agent Name & ID</th>
-                  <th>Monitoring Status</th>
+                  <th>Live Status / Availability</th>
                   <th>Declared Endpoints</th>
                   <th>Metadata</th>
                   <th>Provenance</th>
@@ -230,164 +233,218 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
                 </tr>
               </thead>
               <tbody>
-                {paginatedAgents.map((agent) => (
-                  <tr key={agent.id}>
-                    {/* Agent Identity */}
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Link
-                            href={`/agents/${agent.chain}/${agent.id}`}
-                            style={{
-                              fontWeight: 700,
-                              color: 'var(--text-primary)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                            }}
-                          >
-                            <span className="font-mono">{agent.name ?? agent.id}</span>
-                          </Link>
-                          <span className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            #{agent.onchainId}
-                          </span>
+                {paginatedAgents.map((agent) => {
+                  const avail = agent.availabilityPct;
+                  const isOnline = agent.latestOutcome === 'SUCCESS';
+
+                  return (
+                    <tr key={agent.id}>
+                      {/* Agent Identity */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Link
+                              href={`/agents/${agent.chain}/${agent.id}`}
+                              style={{
+                                fontWeight: 700,
+                                color: 'var(--text-primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                              }}
+                            >
+                              <span className="font-mono">{agent.name ?? agent.id}</span>
+                            </Link>
+                            <span className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              #{agent.onchainId}
+                            </span>
+                          </div>
+                          {agent.description && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-muted)',
+                                maxWidth: 300,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={agent.description}
+                            >
+                              {agent.description}
+                            </span>
+                          )}
                         </div>
-                        {agent.description && (
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              color: 'var(--text-muted)',
-                              maxWidth: 320,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={agent.description}
-                          >
-                            {agent.description}
+                      </td>
+
+                      {/* Brief Live Status / Availability */}
+                      <td>
+                        {avail !== undefined && avail !== null ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span
+                                className="font-mono"
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: '0.85rem',
+                                  color: avail >= 90 ? 'var(--status-success)' : avail >= 70 ? 'var(--status-warning)' : 'var(--status-failure)',
+                                }}
+                              >
+                                {avail.toFixed(1)}% Uptime
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              {agent.latestLatencyMs ? `${agent.latestLatencyMs}ms latency` : `${agent.observationCount} checks logged`}
+                            </span>
+                          </div>
+                        ) : agent.isMonitored ? (
+                          <span className="badge font-mono" style={{ background: 'var(--status-success-bg)', color: 'var(--status-success)', border: '1px solid var(--status-success-border)' }}>
+                            <span className="live-pulse" style={{ width: 6, height: 6 }} />
+                            <span>MONITORED</span>
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            STANDBY (NO RUNS)
                           </span>
                         )}
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Monitoring Cohort */}
-                    <td>
-                      <MonitoringStatusBadge isMonitored={Boolean(agent.isMonitored || (agent.observationCount ?? 0) > 0)} />
-                    </td>
+                      {/* Declared Services */}
+                      <td>
+                        {agent.services && agent.services.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                            {agent.services.map((s) => (
+                              <ProtocolBadge key={s.id} protocol={s.protocol} />
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            0 declared
+                          </span>
+                        )}
+                      </td>
 
-                    {/* Declared Services */}
-                    <td>
-                      {agent.services && agent.services.length > 0 ? (
-                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {agent.services.map((s) => (
-                            <ProtocolBadge key={s.id} protocol={s.protocol} />
-                          ))}
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          0 declared
-                        </span>
-                      )}
-                    </td>
+                      {/* Metadata Status */}
+                      <td>
+                        <MetadataStatusBadge resolved={agent.metadataResolved ?? false} />
+                      </td>
 
-                    {/* Metadata Status */}
-                    <td>
-                      <MetadataStatusBadge resolved={agent.metadataResolved ?? false} />
-                    </td>
+                      {/* Provenance */}
+                      <td>
+                        <ProvenanceBadge source={agent.provenance.source} origin={agent.provenance.origin} />
+                      </td>
 
-                    {/* Provenance */}
-                    <td>
-                      <ProvenanceBadge source={agent.provenance.source} origin={agent.provenance.origin} />
-                    </td>
-
-                    {/* Action Link */}
-                    <td style={{ textAlign: 'right' }}>
-                      <Link
-                        href={`/agents/${agent.chain}/${agent.id}`}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '0.3rem 0.65rem' }}
-                      >
-                        <span>Passport</span>
-                        <ArrowUpRight size={12} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                      {/* Action Link */}
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          href={`/agents/${agent.chain}/${agent.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.3rem 0.65rem' }}
+                        >
+                          <span>Passport</span>
+                          <ArrowUpRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* Mobile Card View (Rendered on screens < 768px) */}
-          <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {paginatedAgents.map((agent) => (
-              <div
-                key={agent.id}
-                className="card"
-                style={{
-                  padding: '1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                  <div>
-                    <Link
-                      href={`/agents/${agent.chain}/${agent.id}`}
+          {/* Mobile Card View */}
+          <div className="mobile-only" style={{ flexDirection: 'column', gap: '0.75rem' }}>
+            {paginatedAgents.map((agent) => {
+              const avail = agent.availabilityPct;
+
+              return (
+                <div
+                  key={agent.id}
+                  className="card"
+                  style={{
+                    padding: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <div>
+                      <Link
+                        href={`/agents/${agent.chain}/${agent.id}`}
+                        style={{
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        {agent.name ?? agent.id}
+                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+                        <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          #{agent.onchainId}
+                        </span>
+                        <CopyButton text={agent.id} label="ID" />
+                      </div>
+                    </div>
+
+                    {avail !== undefined && avail !== null ? (
+                      <span
+                        className="font-mono"
+                        style={{
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          color: avail >= 90 ? 'var(--status-success)' : 'var(--status-warning)',
+                          padding: '0.15rem 0.45rem',
+                          background: 'var(--bg-surface-2)',
+                          borderRadius: 4,
+                          border: '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        {avail.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <MonitoringStatusBadge isMonitored={Boolean(agent.isMonitored || (agent.observationCount ?? 0) > 0)} />
+                    )}
+                  </div>
+
+                  {agent.description && (
+                    <p
                       style={{
-                        fontWeight: 700,
-                        fontSize: '0.95rem',
-                        color: 'var(--text-primary)',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.4,
+                        margin: 0,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
                       }}
                     >
-                      {agent.name ?? agent.id}
-                    </Link>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
-                      <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        #{agent.onchainId}
-                      </span>
-                      <CopyButton text={agent.id} label="ID" />
-                    </div>
-                  </div>
-                  <MonitoringStatusBadge isMonitored={Boolean(agent.isMonitored || (agent.observationCount ?? 0) > 0)} />
-                </div>
-
-                {agent.description && (
-                  <p
-                    style={{
-                      fontSize: '0.8rem',
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.4,
-                      margin: 0,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {agent.description}
-                  </p>
-                )}
-
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <MetadataStatusBadge resolved={agent.metadataResolved ?? false} />
-                  {agent.services && agent.services.length > 0 ? (
-                    agent.services.map((s) => <ProtocolBadge key={s.id} protocol={s.protocol} />)
-                  ) : (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>0 endpoints</span>
+                      {agent.description}
+                    </p>
                   )}
-                </div>
 
-                <Link
-                  href={`/agents/${agent.chain}/${agent.id}`}
-                  className="btn btn-secondary btn-sm"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  <span>View Reliability Passport</span>
-                  <ArrowUpRight size={13} />
-                </Link>
-              </div>
-            ))}
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <MetadataStatusBadge resolved={agent.metadataResolved ?? false} />
+                    {agent.services && agent.services.length > 0 ? (
+                      agent.services.map((s) => <ProtocolBadge key={s.id} protocol={s.protocol} />)
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>0 endpoints</span>
+                    )}
+                  </div>
+
+                  <Link
+                    href={`/agents/${agent.chain}/${agent.id}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <span>View Reliability Passport</span>
+                    <ArrowUpRight size={13} />
+                  </Link>
+                </div>
+              );
+            })}
           </div>
 
           {/* Pagination Controls */}

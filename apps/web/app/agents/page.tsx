@@ -13,18 +13,29 @@ export default async function AgentsPage() {
     const rawAgents = await db.select().from(agents).orderBy(desc(agents.lastIngestedAt)).limit(500);
     const rawServices = await db.select().from(services);
     
-    // Fetch observation count per agent to accurately identify active monitoring cohort
-    const obsCounts = await db
+    // Efficiently aggregate observation summaries per agent
+    const obsStats = await db
       .select({
         agentId: observations.agentId,
-        count: sql<number>`count(*)::int`,
+        totalCount: sql<number>`count(*)::int`,
+        successCount: sql<number>`count(*) FILTER (WHERE ${observations.outcome} = 'SUCCESS')::int`,
+        latestOutcome: sql<string>`(array_agg(${observations.outcome} ORDER BY ${observations.timestamp} DESC))[1]`,
+        latestLatency: sql<number>`(array_agg(${observations.latencyMs} FILTER (WHERE ${observations.latencyMs} IS NOT NULL) ORDER BY ${observations.timestamp} DESC))[1]`,
       })
       .from(observations)
       .groupBy(observations.agentId);
 
-    const obsCountMap = new Map<string, number>();
-    for (const row of obsCounts) {
-      obsCountMap.set(row.agentId, Number(row.count));
+    const statsMap = new Map<
+      string,
+      { totalCount: number; successCount: number; latestOutcome?: string; latestLatency?: number }
+    >();
+    for (const row of obsStats) {
+      statsMap.set(row.agentId, {
+        totalCount: Number(row.totalCount),
+        successCount: Number(row.successCount),
+        latestOutcome: row.latestOutcome ?? undefined,
+        latestLatency: row.latestLatency ? Number(row.latestLatency) : undefined,
+      });
     }
 
     // Group services by agentId
@@ -35,7 +46,11 @@ export default async function AgentsPage() {
     }
 
     agentItems = rawAgents.map((a) => {
-      const obsCount = obsCountMap.get(a.id) ?? 0;
+      const stats = statsMap.get(a.id);
+      const obsCount = stats?.totalCount ?? 0;
+      const successCount = stats?.successCount ?? 0;
+      const availPct = obsCount > 0 ? (successCount / obsCount) * 100 : null;
+
       return {
         id: a.id,
         chain: a.chain as any,
@@ -51,6 +66,9 @@ export default async function AgentsPage() {
         })),
         isMonitored: obsCount > 0,
         observationCount: obsCount,
+        availabilityPct: availPct,
+        latestOutcome: stats?.latestOutcome,
+        latestLatencyMs: stats?.latestLatency,
         provenance: {
           source: a.provenanceSource as any,
           origin: a.provenanceOrigin,
@@ -97,8 +115,7 @@ export default async function AgentsPage() {
           Autonomous Agents Directory
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', maxWidth: 720, lineHeight: 1.6 }}>
-          Directory of ERC-8004 agents discovered from the BNB Chain registry. Agents with advertised endpoints
-          are monitored via scheduled autonomous probe cycles.
+          Directory of ERC-8004 agents discovered from the BNB Chain registry. Quick reachability, uptime percentage, and response latency are shown directly for monitored agents.
         </p>
       </div>
 

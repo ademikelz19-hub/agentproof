@@ -223,3 +223,22 @@ table.data-table tr:hover td {
   padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
 }
+
+/* Responsive Visibility Helpers */
+@media (max-width: 767px) {
+  .desktop-only {
+    display: none !important;
+  }
+  .mobile-only {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+  .desktop-only {
+    display: block !important;
+  }
+}
