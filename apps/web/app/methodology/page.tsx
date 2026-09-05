@@ -57,7 +57,7 @@ export default function MethodologyPage() {
       </div>
 
       {/* 1. Identity vs. Operability */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="identity-vs-operability" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <Shield size={20} color="var(--accent-bnb)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -82,7 +82,7 @@ export default function MethodologyPage() {
       </section>
 
       {/* 2. The 5 Deterministic Probes */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="deterministic-probes" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <Activity size={20} color="var(--status-strong)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -147,7 +147,7 @@ export default function MethodologyPage() {
       </section>
 
       {/* 3. Reliability Calculations */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="measured-availability" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <Zap size={20} color="var(--status-limited)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -155,7 +155,7 @@ export default function MethodologyPage() {
           </h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1rem' }}>
-          Availability is computed over explicit sliding windows (<strong>24 Hours</strong>, <strong>7 Days</strong>, and <strong>30 Days</strong>):
+          Measured Availability is computed over explicit sliding windows (<strong>24 Hours</strong>, <strong>7 Days</strong>, and <strong>30 Days</strong>):
         </p>
 
         <div
@@ -165,23 +165,49 @@ export default function MethodologyPage() {
             borderRadius: 6,
             fontFamily: 'var(--font-mono)',
             fontSize: '0.875rem',
-            marginBottom: '1rem',
+            marginBottom: '1.25rem',
             overflowX: 'auto',
           }}
         >
-          Availability % = ( Successful Probes / (Successful Probes + Attributable Failures) ) * 100
+          Measured Availability % = ( Successful Attributable Probes / Total Attributable Probes ) * 100
         </div>
 
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-          Attributable vs. Internal Failures
+        <h3 id="attributable-outcomes" style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-primary)', scrollMarginTop: '2rem' }}>
+          Attributable vs. Excluded Outcomes
         </h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6 }}>
-          Only agent-side failures (<code className="font-mono">AGENT_UNREACHABLE</code>, <code className="font-mono">TIMEOUT</code>, <code className="font-mono">HTTP_5XX</code>, <code className="font-mono">PROTOCOL_INVALID</code>) degrade the agent&apos;s availability ratio. Internal runner errors or network partition issues on AgentProof&apos;s infrastructure are classified as <code className="font-mono">AGENTPROOF_INTERNAL_ERROR</code> and do not penalize the agent.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '0.75rem' }}>
+          To guarantee rigorous fairness, AgentProof partitions probe outcomes into two strict categories:
         </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ padding: '1rem', background: 'var(--bg-surface-2)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+            <strong style={{ color: 'var(--status-success)', display: 'block', marginBottom: '0.4rem' }}>
+              ✓ Attributable Outcomes (Count in Denominator)
+            </strong>
+            <ul style={{ paddingLeft: '1.1rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              <li><code className="font-mono">SUCCESS</code>: Endpoint responded within parameters.</li>
+              <li><code className="font-mono">AGENT_UNREACHABLE</code>: Agent server dropped connection or refused TCP.</li>
+              <li><code className="font-mono">DNS_FAILURE</code>: Agent hostname failed public resolution.</li>
+              <li><code className="font-mono">TIMEOUT</code>: Agent service exceeded the 10-second timeout.</li>
+              <li><code className="font-mono">PROTOCOL_INVALID</code>: Agent returned HTTP 5xx or malformed payload.</li>
+            </ul>
+          </div>
+
+          <div style={{ padding: '1rem', background: 'var(--bg-surface-2)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+            <strong style={{ color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>
+              ⊘ Excluded Outcomes (Never Penalize Availability)
+            </strong>
+            <ul style={{ paddingLeft: '1.1rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              <li><code className="font-mono">BLOCKED_BY_SECURITY_POLICY</code>: Target was an RFC1918/localhost IP blocked by runner security policy.</li>
+              <li><code className="font-mono">UPSTREAM_INDEXER_FAILURE</code>: 8004scan or RPC gateway was unavailable.</li>
+              <li><code className="font-mono">AGENTPROOF_INTERNAL_ERROR</code>: Runner internal execution error.</li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       {/* 4. Evidence Sufficiency Tiers */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="evidence-coverage" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <FileText size={20} color="var(--status-moderate)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -189,50 +215,50 @@ export default function MethodologyPage() {
           </h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.25rem' }}>
-          Every reliability number is paired with an explicit sufficiency tier that communicates sample maturity:
+          Every reliability percentage is paired with an explicit sufficiency tier that communicates sample depth:
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
             <SufficiencyBadge tier="STRONG" />
             <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              100+ observations distributed across multiple sampling intervals. Statistically robust sample.
+              30+ observations spanning at least 75% of the window duration. Statistically robust sample.
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
             <SufficiencyBadge tier="MODERATE" />
             <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              20–99 observations with regular temporal spread. Representative operational profile.
+              10–29 observations with regular temporal spread. Representative operational profile.
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
             <SufficiencyBadge tier="LIMITED" />
             <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              3–19 observations. Early measurement history; displayed with clear preliminary caveats.
+              3–9 observations. Early measurement history; displayed with preliminary sample notice.
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
             <SufficiencyBadge tier="INSUFFICIENT" />
             <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              Fewer than 3 observations. Availability percentage is intentionally withheld to prevent misleading scores.
+              Fewer than 3 observations. Availability percentage is intentionally withheld to prevent unrepresentative conclusions.
             </span>
           </div>
         </div>
       </section>
 
       {/* 5. Reputation Integrity */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="reputation-integrity" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <Layers size={20} color="var(--accent-bnb)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            5. Reputation Integrity &amp; Reviewer Diversity
+            5. Onchain Reputation Evidence &amp; Reviewer Distribution
           </h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1rem' }}>
-          AgentProof analyzes 8004scan onchain feedback data to detect artificial feedback inflation, self-review clusters, or reviewer concentration using non-accusatory statistical metrics:
+          AgentProof analyzes 8004scan onchain feedback data to evaluate reviewer diversity and concentration using non-accusatory statistical metrics:
         </p>
 
         <ul style={{ paddingLeft: '1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
@@ -240,7 +266,7 @@ export default function MethodologyPage() {
             <strong>Herfindahl-Hirschman Reviewer Concentration (HHI):</strong> Measures whether feedback is dominated by a small number of wallet addresses.
           </li>
           <li>
-            <strong>Repeat Review Ratio:</strong> Quantifies the proportion of feedback submitted by previously observed reviewers vs. unique wallets.
+            <strong>Reviewer Diversity Ratio:</strong> The fraction of total feedback records submitted by unique wallets (<code className="font-mono">uniqueReviewers / totalFeedback</code>).
           </li>
           <li>
             <strong>Neutral Signal Taxonomy:</strong> Signals such as <code className="font-mono">LOW_REVIEWER_DIVERSITY</code> or <code className="font-mono">HIGH_REVIEWER_CONCENTRATION</code> describe empirical distribution shapes without subjective accusations or blacklisting.
@@ -249,7 +275,7 @@ export default function MethodologyPage() {
       </section>
 
       {/* 6. Security & SSRF Protections */}
-      <section className="card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+      <section id="probe-policy" className="card" style={{ padding: '1.75rem', marginBottom: '2rem', scrollMarginTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
           <Lock size={20} color="var(--status-strong)" />
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -277,7 +303,7 @@ export default function MethodologyPage() {
       </section>
 
       {/* 7. Explicit Limitations */}
-      <section className="card" style={{ padding: '1.75rem' }}>
+      <section id="limitations" className="card" style={{ padding: '1.75rem', scrollMarginTop: '2rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
           7. Explicit Limitations &amp; Boundaries
         </h2>

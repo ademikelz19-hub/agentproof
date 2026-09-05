@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { PageShell } from '@/components/PageShell';
 import { MetricCard } from '@/components/MetricCard';
-import { OutcomeBadge, ProtocolBadge } from '@/components/Badges';
-import { TimeAgo, LocalTime } from '@/components/TimeAgo';
-import { db, agents, services, observations, probeRuns, reputationSnapshots } from '@agentproof/db';
-import { count, desc } from 'drizzle-orm';
+import { OutcomeBadge, ProtocolBadge, SufficiencyBadge, MonitoringStatusBadge } from '@/components/Badges';
+import { TimeAgo } from '@/components/TimeAgo';
+import { db, agents, services, observations, probeRuns } from '@agentproof/db';
+import { count, desc, sql } from 'drizzle-orm';
 import {
   Shield,
   Activity,
@@ -17,17 +17,21 @@ import {
   Code,
   FileCheck,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Fetch genuine metrics directly from Neon PostgreSQL
-  let totalAgents = 0;
+  let totalIndexedAgents = 0;
+  let activelyMonitoredAgents = 0;
   let totalServices = 0;
   let totalObservations = 0;
   let latestRun: typeof probeRuns.$inferSelect | null = null;
   let recentObservations: (typeof observations.$inferSelect & { agentName?: string | null })[] = [];
+  let featuredAgent: typeof agents.$inferSelect | null = null;
+  let featuredServicesCount = 0;
+  let featuredObsCount = 0;
 
   try {
     const [
@@ -36,19 +40,34 @@ export default async function Home() {
       obsCountRes,
       lastRunRes,
       latestObsRes,
+      monitoredRes,
+      featuredRes,
     ] = await Promise.all([
       db.select({ count: count() }).from(agents),
       db.select({ count: count() }).from(services),
       db.select({ count: count() }).from(observations),
       db.select().from(probeRuns).orderBy(desc(probeRuns.startedAt)).limit(1),
-      db.select().from(observations).orderBy(desc(observations.timestamp)).limit(10),
+      db.select().from(observations).orderBy(desc(observations.timestamp)).limit(8),
+      db.select({ count: sql<number>`count(distinct ${observations.agentId})::int` }).from(observations),
+      db.select().from(agents).where(sql`${agents.id} = 'bsc:2518' OR ${agents.id} = 'bsc:316375'`).limit(1),
     ]);
 
-    totalAgents = agentCountRes[0]?.count ?? 0;
+    totalIndexedAgents = agentCountRes[0]?.count ?? 0;
     totalServices = serviceCountRes[0]?.count ?? 0;
     totalObservations = obsCountRes[0]?.count ?? 0;
     latestRun = lastRunRes[0] ?? null;
     recentObservations = latestObsRes ?? [];
+    activelyMonitoredAgents = monitoredRes[0]?.count ?? 0;
+    featuredAgent = featuredRes[0] ?? null;
+
+    if (featuredAgent) {
+      const [featSvc, featObs] = await Promise.all([
+        db.select({ count: count() }).from(services).where(sql`${services.agentId} = ${featuredAgent.id}`),
+        db.select({ count: count() }).from(observations).where(sql`${observations.agentId} = ${featuredAgent.id}`),
+      ]);
+      featuredServicesCount = featSvc[0]?.count ?? 0;
+      featuredObsCount = featObs[0]?.count ?? 0;
+    }
   } catch (err) {
     console.error('Error fetching homepage telemetry:', err);
   }
@@ -87,7 +106,7 @@ export default async function Home() {
             color: 'var(--text-primary)',
           }}
         >
-          Verify if onchain AI agents are actually online and working.
+          Independent reliability evidence for autonomous onchain agents.
         </h1>
 
         <p
@@ -100,7 +119,7 @@ export default async function Home() {
             margin: '0 auto 2rem',
           }}
         >
-          Anyone can register an AI bot on BNB Chain. <strong>AgentProof</strong> independently tests whether its advertised links, APIs, and tools actually work — measuring live uptime, response speeds, and real user reviews without fake scores.
+          Anyone can register an agent identity on BNB Chain. <strong>AgentProof</strong> independently connects to its declared APIs and tools — measuring reachability, response latency, and onchain feedback distribution without opaque scores.
         </p>
 
         <div
@@ -114,15 +133,15 @@ export default async function Home() {
         >
           <Link href="/agents" className="btn btn-primary" style={{ padding: '0.75rem 1.4rem' }}>
             <Activity size={16} />
-            <span>Explore Live Agents</span>
+            <span>Explore Monitored Agents</span>
             <ArrowRight size={15} />
           </Link>
           <Link href="/methodology" className="btn btn-secondary" style={{ padding: '0.75rem 1.4rem' }}>
-            <span>View Methodology</span>
+            <span>Methodology &amp; Formulas</span>
           </Link>
           <Link href="/developers" className="btn btn-secondary" style={{ padding: '0.75rem 1.4rem' }}>
             <Code size={15} />
-            <span>Read-Only API</span>
+            <span>Developer API</span>
           </Link>
         </div>
 
@@ -139,25 +158,25 @@ export default async function Home() {
             fontFamily: 'var(--font-mono)',
           }}
         >
-          <span>✓ Live BSC Probing</span>
+          <span>✓ Scheduled BSC Probing</span>
           <span>•</span>
-          <span>✓ Deterministic Math</span>
+          <span>✓ Deterministic Calculations</span>
           <span>•</span>
-          <span>✓ Zero ML Hallucinations</span>
+          <span>✓ Reproducible Evidence</span>
           <span>•</span>
-          <span>✓ $0 Developer API</span>
+          <span>✓ Zero-Cost Public API</span>
         </div>
       </section>
 
-      {/* 2. Genuine Live Network Telemetry */}
+      {/* 2. Genuine Network Telemetry */}
       <section style={{ marginBottom: '4rem' }}>
-        <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Live Network Telemetry
+              Network Telemetry &amp; Coverage
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-              Real-time measurement metrics directly backed by Neon PostgreSQL observations on BNB Chain.
+              Persisted empirical measurements recorded to PostgreSQL on BNB Chain.
             </p>
           </div>
           <div
@@ -171,7 +190,7 @@ export default async function Home() {
             }}
           >
             <span className="live-pulse" />
-            <span>Active Probing</span>
+            <span>Continuously Scheduled Monitoring</span>
           </div>
         </div>
 
@@ -183,37 +202,37 @@ export default async function Home() {
           }}
         >
           <MetricCard
-            label="Monitored AI Agents"
-            value={totalAgents}
-            subvalue="ERC-8004 on BNB Chain"
-            description="Active autonomous agents discovered from the BNB Chain onchain registry."
+            label="Agents Indexed"
+            value={totalIndexedAgents}
+            subvalue="ERC-8004 Registry"
+            description="Onchain agents discovered from BNB Chain ERC-8004 registries."
             icon={Shield}
             accent="var(--accent-bnb)"
-            tooltip="Count of distinct agents stored with onchain registry IDs."
+            tooltip="Total distinct agents discovered and persisted in AgentProof database."
           />
           <MetricCard
-            label="Health Checks Run"
-            value={totalObservations.toLocaleString()}
-            subvalue="Continuous Live Pings"
-            description="SSRF-hardened reachability, speed, and protocol tests recorded to Postgres."
-            icon={Database}
+            label="Actively Monitored"
+            value={activelyMonitoredAgents}
+            subvalue="Scheduled Probe Cohort"
+            description="Agents with advertised services probed in automated scheduled runs."
+            icon={Server}
             accent="var(--status-strong)"
+            tooltip="Cohort of agents with eligible endpoints probed during hourly cycles."
+          />
+          <MetricCard
+            label="Retained Observations"
+            value={totalObservations.toLocaleString()}
+            subvalue="Recorded Measurements"
+            description="SSRF-hardened reachability, latency, and protocol probe observations."
+            icon={Database}
+            accent="var(--status-limited)"
             tooltip="Total individual reachability, latency, and protocol observations recorded."
           />
           <MetricCard
-            label="Active Bot Endpoints"
-            value={totalServices}
-            subvalue="APIs, RPCs & Tools"
-            description="Declared HTTP, agent-to-agent, and model capability endpoints."
-            icon={Server}
-            accent="var(--status-limited)"
-            tooltip="Active service declarations extracted from agent metadata."
-          />
-          <MetricCard
-            label="Latest Health Check"
+            label="Latest Probe Run"
             value={latestRun?.finishedAt ? <TimeAgo timestamp={latestRun.finishedAt} /> : 'Active'}
             subvalue={latestRun?.finishedAt ? `Completed at ${new Date(latestRun.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC` : 'Hourly Cycle'}
-            description={`Tested ${latestRun?.targetAgentCount ?? totalAgents} agents via automated cloud runners.`}
+            description={`Tested ${latestRun?.targetAgentCount ?? activelyMonitoredAgents} agents in latest autonomous cycle.`}
             icon={Zap}
             accent="var(--status-moderate)"
             tooltip="Timestamp of the most recent autonomous cloud probe cycle."
@@ -221,15 +240,81 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* 3. The Problem & Solution Story */}
+      {/* 3. Featured Real Reliability Passport */}
+      {featuredAgent && (
+        <section style={{ marginBottom: '4rem' }}>
+          <div className="card" style={{ padding: '2rem', background: 'var(--bg-surface-1)', border: '1px solid var(--accent-bnb-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                  <span className="badge font-mono" style={{ background: 'var(--accent-bnb-subtle)', color: 'var(--accent-bnb)', border: '1px solid var(--accent-bnb-border)' }}>
+                    FEATURED EVIDENCE
+                  </span>
+                  <span className="badge font-mono" style={{ background: 'var(--bg-surface-2)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}>
+                    TOKEN #{featuredAgent.onchainId}
+                  </span>
+                  <MonitoringStatusBadge isMonitored={true} />
+                </div>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  {featuredAgent.name ?? featuredAgent.id}
+                </h3>
+                <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {featuredAgent.id}
+                </span>
+              </div>
+
+              <Link
+                href={`/agents/${featuredAgent.chain}/${featuredAgent.id}`}
+                className="btn btn-primary btn-sm"
+              >
+                <span>View Full Reliability Passport</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {featuredAgent.description && (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                {featuredAgent.description}
+              </p>
+            )}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '0.75rem',
+                padding: '1rem',
+                background: 'var(--bg-surface-2)',
+                borderRadius: 6,
+                fontSize: '0.8rem',
+              }}
+            >
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Declared Endpoints: </span>
+                <strong style={{ color: 'var(--text-primary)' }}>{featuredServicesCount}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Retained Checks: </span>
+                <strong style={{ color: 'var(--text-primary)' }}>{featuredObsCount}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Registry: </span>
+                <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>BNB Chain (56)</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 4. Measurement Pipeline Story */}
       <section style={{ marginBottom: '4rem' }}>
         <div className="card" style={{ padding: '2.5rem 2rem', background: 'var(--bg-surface-1)' }}>
           <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2.5rem' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-              How AgentProof Verifies Autonomous AI Agents
+              How AgentProof Evaluates Autonomous Agents
             </h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              A bot being registered onchain doesn't mean it's online. AgentProof connects to its declared servers and measures whether it actually works.
+              Onchain registration establishes identity. AgentProof establishes whether the advertised service actually answers requests.
             </p>
           </div>
 
@@ -238,7 +323,6 @@ export default async function Home() {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               gap: '1.5rem',
-              position: 'relative',
             }}
           >
             {/* Step 1 */}
@@ -262,10 +346,10 @@ export default async function Home() {
                 01 • ONCHAIN IDENTITY
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Bot Registers
+                Agent Registration
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                A creator registers an AI agent on BNB Chain's public registry (ERC-8004) with its wallet ownership and metadata.
+                An agent identity is registered on BNB Chain (ERC-8004) with its wallet ownership and metadata pointer.
               </p>
             </div>
 
@@ -290,10 +374,10 @@ export default async function Home() {
                 02 • ENDPOINTS DECLARED
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Links & APIs Shared
+                Services Advertised
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                The bot advertises its public web addresses, APIs, RPCs, or agent-to-agent tools where other apps can contact it.
+                The agent advertises public endpoints (HTTP, A2A, MCP) where other onchain agents or users can interact with it.
               </p>
             </div>
 
@@ -315,13 +399,13 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                03 • AUTOMATED TESTING
+                03 • AUTONOMOUS PROBES
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Continuous Health Checks
+                Scheduled Telemetry
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                AgentProof runs secure cloud pings every hour — testing if the bot responds, measuring millisecond speed, and checking errors.
+                AgentProof runs SSRF-hardened cloud probes — testing reachability, measuring response speed, and logging protocol validity.
               </p>
             </div>
 
@@ -343,28 +427,28 @@ export default async function Home() {
                   marginBottom: '0.5rem',
                 }}
               >
-                04 • LIVE REPORT CARD
+                04 • EVIDENCE LEDGER
               </div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                 Reliability Passport
               </h3>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                All test results are permanently saved into an open report card with 24h/7d uptime percentages and review authenticity signals.
+                Timestamped evidence is recorded in an open ledger with sliding window availability ratios and onchain feedback distribution.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 4. Live Activity Stream */}
+      {/* 5. Live Activity Stream */}
       <section style={{ marginBottom: '4rem' }}>
-        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Live Health Check Activity
+              Recent Probe Telemetry Feed
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-              Real-time feed of recent test pings conducted on BNB Chain agents.
+              Latest automated health checks conducted on BSC agent services.
             </p>
           </div>
           <Link href="/agents" className="btn btn-secondary btn-sm">
@@ -452,11 +536,11 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 5. Core Architectural Pillars */}
+      {/* 6. Core Architectural Pillars */}
       <section style={{ marginBottom: '2rem' }}>
         <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 2rem' }}>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-            Engineered for Trust &amp; Composability
+            Engineered for Verifiability &amp; Composability
           </h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             Why developer ecosystems and onchain orchestrators rely on AgentProof evidence.
@@ -487,10 +571,10 @@ export default async function Home() {
               <div style={{ color: 'var(--status-strong)' }}>
                 <FileCheck size={20} />
               </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Deterministic Math</h3>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Deterministic Calculations</h3>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Zero AI or LLM scoring. Reliability metrics are calculated with reproducible mathematical formulas over explicit 24h, 7d, and 30d observation windows.
+              Zero AI hallucinated scores. Availability ratios are calculated with reproducible mathematical formulas over explicit 24h, 7d, and 30d observation windows.
             </p>
           </div>
 
@@ -502,7 +586,7 @@ export default async function Home() {
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Zero-Cost REST API</h3>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Designed for automated routing and orchestrators like AgentFlow. Read endpoints require no API key and provide JSON responses with explicit provenance.
+              Designed for automated routing and orchestrators like AgentFlow. Read endpoints require no API key and provide standard JSON responses with explicit provenance.
             </p>
           </div>
         </div>

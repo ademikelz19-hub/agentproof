@@ -4,7 +4,14 @@ import { computeReputationEvidence } from '@agentproof/reputation';
 import { PageShell, EmptyState } from '@/components/PageShell';
 import { SafeExternalLink } from '@/components/SafeExternalLink';
 import { CopyButton } from '@/components/CopyButton';
-import { SufficiencyBadge, OutcomeBadge, ProtocolBadge, ProvenanceBadge } from '@/components/Badges';
+import {
+  SufficiencyBadge,
+  OutcomeBadge,
+  ProtocolBadge,
+  ProvenanceBadge,
+  MonitoringStatusBadge,
+  MetadataStatusBadge,
+} from '@/components/Badges';
 import { ReliabilityTimeline } from '@/components/ReliabilityTimeline';
 import { UptimeHistoryGraph } from '@/components/UptimeHistoryGraph';
 import type { ChainId, ReliabilityWindow } from '@agentproof/core';
@@ -23,6 +30,7 @@ import {
   Server,
   FileCheck,
   Zap,
+  Info,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -56,15 +64,17 @@ function WindowCard({ window }: { window: ReliabilityWindow }) {
           <span
             style={{
               fontWeight: 700,
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               color: 'var(--text-primary)',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
             }}
           >
-            {window.window.toUpperCase()} Uptime
+            {window.window.toUpperCase()} Window
           </span>
-          <SufficiencyBadge tier={window.dataSufficiency} />
+          <Link href="/methodology#evidence-coverage" title="How evidence sufficiency is classified">
+            <SufficiencyBadge tier={window.dataSufficiency} />
+          </Link>
         </div>
 
         {isSufficient ? (
@@ -81,7 +91,9 @@ function WindowCard({ window }: { window: ReliabilityWindow }) {
               {avail.toFixed(1)}%
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem', fontFamily: 'var(--font-mono)' }}>
-              Uptime Score
+              <Link href="/methodology#measured-availability" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                Measured Availability
+              </Link>
             </div>
 
             <div
@@ -97,26 +109,26 @@ function WindowCard({ window }: { window: ReliabilityWindow }) {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Total Tests:</span>
+                <span style={{ color: 'var(--text-muted)' }}>Attributable Probes:</span>
                 <span className="font-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {window.observationCount}
+                  {window.successCount} / {window.observationCount} passed
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Passed / Failed:</span>
-                <span className="font-mono">
-                  {window.successCount} / {window.failureCount}
+                <span style={{ color: 'var(--text-muted)' }}>Attributable Failures:</span>
+                <span className="font-mono" style={{ color: window.failureCount > 0 ? 'var(--status-failure)' : 'var(--text-secondary)' }}>
+                  {window.failureCount}
                 </span>
               </div>
               {window.medianLatencyMs !== undefined && (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Typical Speed:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Median Latency:</span>
                   <span className="font-mono">{window.medianLatencyMs}ms</span>
                 </div>
               )}
               {window.p95LatencyMs !== undefined && (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Peak Latency (P95):</span>
+                  <span style={{ color: 'var(--text-muted)' }}>P95 Peak Latency:</span>
                   <span className="font-mono">{window.p95LatencyMs}ms</span>
                 </div>
               )}
@@ -125,10 +137,10 @@ function WindowCard({ window }: { window: ReliabilityWindow }) {
         ) : (
           <div style={{ padding: '1rem 0' }}>
             <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Early test history ({window.observationCount} check{window.observationCount === 1 ? '' : 's'}).
+              Early sample ({window.observationCount} attributable probe{window.observationCount === 1 ? '' : 's'}).
             </div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-              Requires at least 3 test pings to compute meaningful uptime.
+              Requires at least 3 attributable service probes to publish an empirical availability ratio.
             </p>
           </div>
         )}
@@ -140,9 +152,14 @@ function WindowCard({ window }: { window: ReliabilityWindow }) {
           fontSize: '0.7rem',
           color: 'var(--text-muted)',
           fontFamily: 'var(--font-mono)',
+          display: 'flex',
+          justifyContent: 'space-between',
         }}
       >
-        Methodology v{window.methodologyVersion}
+        <span>Methodology v{window.methodologyVersion}</span>
+        <Link href="/methodology#measured-availability" style={{ color: 'var(--accent-bnb)', textDecoration: 'underline' }}>
+          Formula
+        </Link>
       </div>
     </div>
   );
@@ -176,11 +193,13 @@ export default async function AgentPassportPage({
     agentId: agent.id,
     since,
     until: now.toISOString(),
-    limit: 100,
+    limit: 500,
   });
 
   const windows = computeAllWindows({ agentId: agent.id, observations: observationsPage.items, now });
   const reputation = computeReputationEvidence({ agentId: agent.id, feedback, now });
+
+  const isActivelyMonitored = observationsPage.items.length > 0;
 
   return (
     <PageShell>
@@ -214,9 +233,9 @@ export default async function AgentPassportPage({
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
               <span
-                className="badge"
+                className="badge font-mono"
                 style={{
                   background: 'var(--accent-bnb-subtle)',
                   color: 'var(--accent-bnb)',
@@ -235,6 +254,8 @@ export default async function AgentPassportPage({
               >
                 TOKEN #{agent.onchainId}
               </span>
+              <MonitoringStatusBadge isMonitored={isActivelyMonitored} />
+              <MetadataStatusBadge resolved={metadata?.metadataResolved ?? false} />
               <ProvenanceBadge source={agent.provenance.source} origin={agent.provenance.origin} />
             </div>
 
@@ -272,33 +293,50 @@ export default async function AgentPassportPage({
             }}
           >
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Monitoring Status
+              Reliability Passport
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', marginTop: '0.2rem' }}>
-              <span className="live-pulse" />
-              <strong style={{ color: 'var(--status-success)', fontSize: '0.95rem' }}>
-                ONLINE MONITORING
-              </strong>
+              {isActivelyMonitored ? (
+                <>
+                  <span className="live-pulse" />
+                  <strong style={{ color: 'var(--status-success)', fontSize: '0.95rem' }}>
+                    AUTONOMOUS MONITORING
+                  </strong>
+                </>
+              ) : (
+                <strong style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                  INDEXED (STANDBY)
+                </strong>
+              )}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontFamily: 'var(--font-mono)' }}>
-              {observationsPage.items.length} health checks logged
+              {observationsPage.items.length} retained observations
             </div>
           </div>
         </div>
 
         {metadata?.description && (
-          <p
+          <div
             style={{
               marginTop: '1.25rem',
               paddingTop: '1rem',
               borderTop: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              fontSize: '0.9rem',
-              lineHeight: 1.6,
             }}
           >
-            {metadata.description}
-          </p>
+            <p
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                lineHeight: 1.6,
+                margin: 0,
+              }}
+            >
+              {metadata.description}
+            </p>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem', fontStyle: 'italic' }}>
+              Agent-provided metadata (not independently verified by AgentProof)
+            </div>
+          </div>
         )}
 
         {/* Metadata Details strip */}
@@ -339,13 +377,18 @@ export default async function AgentPassportPage({
 
       {/* 2. Reliability Windows (24h, 7d, 30d) */}
       <section style={{ marginBottom: '2.5rem' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Uptime &amp; Response Speed
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            Measured directly by automated cloud tests checking if the bot responds and how fast it answers.
-          </p>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Empirical Service Availability (24h, 7d, 30d)
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+              Deterministic availability ratios computed strictly from attributable service probes.
+            </p>
+          </div>
+          <Link href="/methodology#measured-availability" style={{ fontSize: '0.8rem', color: 'var(--accent-bnb)', textDecoration: 'underline' }}>
+            Methodology &amp; Formulas →
+          </Link>
         </div>
 
         <div
@@ -371,7 +414,7 @@ export default async function AgentPassportPage({
             lineHeight: 1.5,
           }}
         >
-          <strong>About Sample Sizes:</strong> Badges (EARLY SAMPLE, MODERATE SAMPLE, VERIFIED SAMPLE) reflect how many test cycles have been recorded over time.
+          <strong>About Evidence Coverage:</strong> Sufficiency tiers (LIMITED, MODERATE, STRONG) describe the statistical depth of recorded empirical observations. It is not a safety or trust rating.
         </div>
       </section>
 
@@ -379,10 +422,10 @@ export default async function AgentPassportPage({
       <section style={{ marginBottom: '2.5rem' }}>
         <div style={{ marginBottom: '1rem' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Recent Ping History &amp; Speed
+            Scheduled Cycle Telemetry &amp; Latency
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            History of automated health checks showing response times in milliseconds.
+            Audit trail of automated probe runs tracking service response speeds in milliseconds.
           </p>
         </div>
 
@@ -401,7 +444,7 @@ export default async function AgentPassportPage({
             Declared Endpoints &amp; Tools ({servicesList.length})
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            Public links, APIs, and agent-to-agent tools advertised by this bot.
+            Public links, APIs, and agent-to-agent protocols advertised in this agent&apos;s ERC-8004 registry record.
           </p>
         </div>
 
@@ -453,13 +496,18 @@ export default async function AgentPassportPage({
 
       {/* 5. Reputation Evidence */}
       <section style={{ marginBottom: '2.5rem' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            User Reviews &amp; Authenticity
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Independent check on 8004scan user reviews to verify feedback comes from distinct real wallets rather than a single owner.
-          </p>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Onchain Reputation Evidence &amp; Reviewer Distribution
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Analysis of onchain feedback records indexed from ERC-8004 registries to evaluate reviewer diversity and concentration patterns.
+            </p>
+          </div>
+          <Link href="/methodology#reputation-integrity" style={{ fontSize: '0.8rem', color: 'var(--accent-bnb)', textDecoration: 'underline' }}>
+            Reputation Methodology →
+          </Link>
         </div>
 
         <div className="card" style={{ padding: '1.5rem', background: 'var(--bg-surface-1)' }}>
@@ -475,7 +523,7 @@ export default async function AgentPassportPage({
               >
                 <div style={{ padding: '1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Total Reviews
+                    Feedback Records
                   </div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
                     {reputation.feedbackCount}
@@ -504,7 +552,7 @@ export default async function AgentPassportPage({
 
                 <div style={{ padding: '1rem', background: 'var(--bg-surface-2)', borderRadius: 6 }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Review Sample Size
+                    Evidence Coverage
                   </div>
                   <div style={{ marginTop: '0.4rem' }}>
                     <SufficiencyBadge tier={reputation.dataSufficiency} />
@@ -515,12 +563,12 @@ export default async function AgentPassportPage({
               {/* Signals */}
               <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)' }}>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-                  Detected Review Signals ({reputation.integritySignals.length})
+                  Observed Reputation Signals ({reputation.integritySignals.length})
                 </h3>
 
                 {reputation.integritySignals.length === 0 ? (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    No suspicious reviewer concentration or self-review patterns detected.
+                    No extreme reviewer concentration or burst patterns observed in indexed records.
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -551,42 +599,42 @@ export default async function AgentPassportPage({
             </div>
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
-              No onchain user reviews submitted for this bot yet.
+              No onchain feedback records indexed for this agent yet.
             </div>
           )}
         </div>
       </section>
 
-      {/* 6. Observation History Ledger Table */}
+      {/* 6. Forensic Observation Ledger */}
       <section style={{ marginBottom: '2.5rem' }}>
         <div style={{ marginBottom: '1rem' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Detailed Health Check Log
+            Forensic Observation Ledger
           </h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            Complete audit trail of every automated test ping recorded for this bot.
+            Complete, timestamped audit trail of every automated probe recorded for this agent.
           </p>
         </div>
 
         {observationsPage.items.length === 0 ? (
           <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No health checks recorded for this agent in the last 30 days.
+            No probe observations recorded for this agent in the last 30 days.
           </div>
         ) : (
           <div className="table-container">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Time Tested</th>
-                  <th>Test Type</th>
+                  <th>Timestamp</th>
+                  <th>Probe Type</th>
                   <th>Result</th>
-                  <th>Speed</th>
+                  <th>Latency</th>
                   <th>HTTP Status</th>
-                  <th>Version</th>
+                  <th>Methodology</th>
                 </tr>
               </thead>
               <tbody>
-                {observationsPage.items.slice(0, 20).map((obs) => (
+                {observationsPage.items.slice(0, 30).map((obs) => (
                   <tr key={obs.id}>
                     <td>
                       <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>

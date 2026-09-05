@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Activity, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Activity, CheckCircle2, AlertTriangle, XCircle, Lock, HelpCircle } from 'lucide-react';
 import type { ProbeObservation } from '@agentproof/core';
+import { filterAttributableObservations, isAttributableOutcome } from '@agentproof/reliability';
+import Link from 'next/link';
 
 export function ReliabilityTimeline({
   observations = [],
@@ -36,17 +38,18 @@ export function ReliabilityTimeline({
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  const total = sorted.length;
-  const successes = sorted.filter((o) => o.outcome === 'SUCCESS').length;
-  const timeouts = sorted.filter((o) => o.outcome === 'TIMEOUT').length;
-  const failures = total - successes - timeouts;
-  const successPct = total > 0 ? ((successes / total) * 100).toFixed(1) : '0';
+  const totalAll = sorted.length;
+  const attributable = filterAttributableObservations(sorted);
+  const totalAttributable = attributable.length;
+  const successes = attributable.filter((o) => o.outcome === 'SUCCESS').length;
+  const failures = totalAttributable - successes;
+  const availabilityPct = totalAttributable > 0 ? ((successes / totalAttributable) * 100).toFixed(1) : null;
 
-  const latencies = sorted
+  const latencies = attributable
     .filter((o) => o.outcome === 'SUCCESS' && typeof o.latencyMs === 'number')
-    .map((o) => o.latencyMs as number);
+    .map((o) => o.latencyMs as number)
+    .sort((a, b) => a - b);
 
-  latencies.sort((a, b) => a - b);
   const medianLatency = latencies.length > 0 ? latencies[Math.floor(latencies.length / 2)] : null;
   const p95Latency =
     latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.95)] : null;
@@ -60,7 +63,7 @@ export function ReliabilityTimeline({
         padding: '1.25rem',
       }}
     >
-      {/* Header with summary stats */}
+      {/* Header with canonical summary stats */}
       <div
         style={{
           display: 'flex',
@@ -75,7 +78,7 @@ export function ReliabilityTimeline({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Activity size={16} color="var(--accent-bnb)" />
-          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
             {windowLabel}
           </span>
           <span
@@ -83,19 +86,28 @@ export function ReliabilityTimeline({
               fontSize: '0.72rem',
               color: 'var(--text-muted)',
               fontFamily: 'var(--font-mono)',
+              background: 'var(--bg-surface-2)',
+              padding: '0.15rem 0.5rem',
+              borderRadius: 4,
+              border: '1px solid var(--border-subtle)',
             }}
           >
-            ({total} probes)
+            {totalAttributable} attributable / {totalAll} total pings
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem' }}>
-          <div>
-            <span style={{ color: 'var(--text-muted)' }}>Availability: </span>
-            <strong style={{ color: Number(successPct) >= 90 ? 'var(--status-success)' : 'var(--status-warning)' }}>
-              {successPct}%
-            </strong>
-          </div>
+        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {availabilityPct !== null && (
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Measured Availability: </span>
+              <strong style={{ color: Number(availabilityPct) >= 90 ? 'var(--status-success)' : 'var(--status-warning)' }}>
+                {availabilityPct}%
+              </strong>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginLeft: '0.25rem' }}>
+                ({successes}/{totalAttributable})
+              </span>
+            </div>
+          )}
           {medianLatency !== null && (
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Median: </span>
@@ -108,6 +120,12 @@ export function ReliabilityTimeline({
               <strong className="font-mono">{p95Latency}ms</strong>
             </div>
           )}
+          <Link
+            href="/methodology#measured-availability"
+            style={{ fontSize: '0.72rem', color: 'var(--accent-bnb)', textDecoration: 'underline' }}
+          >
+            How calculated?
+          </Link>
         </div>
       </div>
 
@@ -123,19 +141,24 @@ export function ReliabilityTimeline({
         }}
       >
         {sorted.map((obs) => {
-          const isSuccess = obs.outcome === 'SUCCESS';
-          const isTimeout = obs.outcome === 'TIMEOUT';
-          const bg = isSuccess
-            ? 'var(--status-success)'
-            : isTimeout
-            ? 'var(--status-warning)'
-            : 'var(--status-failure)';
+          let bg = 'var(--status-failure)';
+          if (obs.outcome === 'SUCCESS') {
+            bg = 'var(--status-success)';
+          } else if (obs.outcome === 'TIMEOUT') {
+            bg = 'var(--status-warning)';
+          } else if (obs.outcome === 'PROTOCOL_INVALID') {
+            bg = '#c084fc';
+          } else if (obs.outcome === 'BLOCKED_BY_SECURITY_POLICY') {
+            bg = '#64748b'; // Slate gray for security blocks
+          } else if (!isAttributableOutcome(obs.outcome)) {
+            bg = '#475569';
+          }
 
           // Scale height based on latency if available
           let heightPct = 60;
-          if (isSuccess && obs.latencyMs) {
+          if (obs.outcome === 'SUCCESS' && obs.latencyMs) {
             heightPct = Math.min(100, Math.max(35, (obs.latencyMs / 1500) * 100));
-          } else if (!isSuccess) {
+          } else if (obs.outcome !== 'SUCCESS') {
             heightPct = 100;
           }
 
@@ -152,7 +175,7 @@ export function ReliabilityTimeline({
                 minWidth: 4,
                 height: `${heightPct}%`,
                 background: bg,
-                opacity: isHovered ? 1 : 0.8,
+                opacity: isHovered ? 1 : 0.85,
                 borderRadius: 2,
                 cursor: 'pointer',
                 transition: 'all 0.1s ease',
@@ -182,9 +205,11 @@ export function ReliabilityTimeline({
       >
         {hoveredObs ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {hoveredObs.outcome === 'SUCCESS' ? (
-                <CheckCircle size={13} color="var(--status-success)" />
+                <CheckCircle2 size={13} color="var(--status-success)" />
+              ) : hoveredObs.outcome === 'BLOCKED_BY_SECURITY_POLICY' ? (
+                <Lock size={13} color="#94a3b8" />
               ) : (
                 <XCircle size={13} color="var(--status-failure)" />
               )}
@@ -200,6 +225,11 @@ export function ReliabilityTimeline({
                   (HTTP {hoveredObs.httpStatus})
                 </span>
               )}
+              {!isAttributableOutcome(hoveredObs.outcome) && (
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', background: 'rgba(148,163,184,0.1)', padding: '0.1rem 0.35rem', borderRadius: 3 }}>
+                  Excluded from availability math
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.85rem', color: 'var(--text-muted)' }}>
               {hoveredObs.latencyMs !== undefined && (
@@ -210,7 +240,7 @@ export function ReliabilityTimeline({
           </>
         ) : (
           <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-            Hover over any probe bar above to view timestamp, latency, and response status.
+            Hover over any probe bar above to view timestamp, latency, and response status. Green = Success, Red/Amber = Attributable Failure, Gray = Policy Excluded.
           </span>
         )}
       </div>

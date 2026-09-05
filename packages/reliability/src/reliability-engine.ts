@@ -25,7 +25,7 @@ import {
  * or it demonstrably wasn't). These are the only outcomes that feed
  * availability/failure calculations.
  */
-const AGENT_ATTRIBUTABLE_OUTCOMES: ReadonlySet<ProbeOutcome> = new Set([
+export const AGENT_ATTRIBUTABLE_OUTCOMES: ReadonlySet<ProbeOutcome> = new Set([
   'SUCCESS',
   'AGENT_UNREACHABLE',
   'DNS_FAILURE',
@@ -39,11 +39,23 @@ const AGENT_ATTRIBUTABLE_OUTCOMES: ReadonlySet<ProbeOutcome> = new Set([
  * upstream indexer outage make an agent look unreliable). Excluded
  * entirely from reliability math.
  */
-const EXCLUDED_OUTCOMES: ReadonlySet<ProbeOutcome> = new Set([
+export const EXCLUDED_OUTCOMES: ReadonlySet<ProbeOutcome> = new Set([
   'UPSTREAM_INDEXER_FAILURE',
   'AGENTPROOF_INTERNAL_ERROR',
   'BLOCKED_BY_SECURITY_POLICY',
 ]);
+
+export function isAttributableOutcome(outcome: ProbeOutcome): boolean {
+  return AGENT_ATTRIBUTABLE_OUTCOMES.has(outcome);
+}
+
+export function isExcludedOutcome(outcome: ProbeOutcome): boolean {
+  return EXCLUDED_OUTCOMES.has(outcome);
+}
+
+export function filterAttributableObservations(observations: ProbeObservation[]): ProbeObservation[] {
+  return observations.filter((o) => isAttributableOutcome(o.outcome));
+}
 
 const WINDOW_MS: Record<ReliabilityWindowSize, number> = {
   '24h': 24 * 60 * 60 * 1000,

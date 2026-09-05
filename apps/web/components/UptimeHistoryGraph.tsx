@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { History, CheckCircle2, XCircle, Clock, Zap } from 'lucide-react';
+import { History, CheckCircle2, XCircle, Clock, Zap, ExternalLink } from 'lucide-react';
 import type { ProbeObservation } from '@agentproof/core';
+import { filterAttributableObservations } from '@agentproof/reliability';
+import Link from 'next/link';
 
 interface CycleSummary {
   cycleId: string;
   runIndex: number;
   timestamp: Date;
-  total: number;
+  totalAll: number;
+  totalAttributable: number;
   successes: number;
   failures: number;
-  availabilityPct: number;
+  availabilityPct: number | null;
   medianLatency: number | null;
 }
 
@@ -54,12 +57,14 @@ export function UptimeHistoryGraph({
     }
 
     return groups.map((group, idx) => {
-      const total = group.length;
-      const successes = group.filter((o) => o.outcome === 'SUCCESS').length;
-      const failures = total - successes;
-      const availabilityPct = total > 0 ? (successes / total) * 100 : 0;
+      const totalAll = group.length;
+      const attributable = filterAttributableObservations(group);
+      const totalAttributable = attributable.length;
+      const successes = attributable.filter((o) => o.outcome === 'SUCCESS').length;
+      const failures = totalAttributable - successes;
+      const availabilityPct = totalAttributable > 0 ? (successes / totalAttributable) * 100 : null;
 
-      const latencies = group
+      const latencies = attributable
         .filter((o) => o.outcome === 'SUCCESS' && typeof o.latencyMs === 'number')
         .map((o) => o.latencyMs as number)
         .sort((a, b) => a - b);
@@ -73,7 +78,8 @@ export function UptimeHistoryGraph({
         cycleId: 'cycle-' + idx + '-' + firstTime.getTime(),
         runIndex: idx + 1,
         timestamp: firstTime,
-        total,
+        totalAll,
+        totalAttributable,
         successes,
         failures,
         availabilityPct,
@@ -115,7 +121,7 @@ export function UptimeHistoryGraph({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <History size={16} color="var(--accent-bnb)" />
           <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-            Run-by-Run Uptime History
+            Scheduled Cycle Uptime History
           </span>
           <span
             style={{
@@ -132,13 +138,19 @@ export function UptimeHistoryGraph({
           </span>
         </div>
 
-        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Total checks: <strong style={{ color: 'var(--text-primary)' }}>{observations.length}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <span>Total checks: <strong style={{ color: 'var(--text-primary)' }}>{observations.length}</strong></span>
+          <Link
+            href="/methodology#measured-availability"
+            style={{ color: 'var(--accent-bnb)', textDecoration: 'underline' }}
+          >
+            Methodology
+          </Link>
         </div>
       </div>
 
       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
-        Each bar reflects an automated health check cycle run by the continuous monitoring pipeline. Uptime scores are averaged per run to track reliability consistency.
+        Each row reflects an automated probe cycle run by AgentProof. Availability is calculated solely over attributable service probes.
       </p>
 
       {/* Cycle Bars List */}
@@ -146,7 +158,9 @@ export function UptimeHistoryGraph({
         {displayCycles.map((cycle) => {
           const avail = cycle.availabilityPct;
           const barColor =
-            avail >= 90
+            avail === null
+              ? '#64748b'
+              : avail >= 90
               ? 'var(--status-success)'
               : avail >= 70
               ? 'var(--status-warning)'
@@ -204,7 +218,7 @@ export function UptimeHistoryGraph({
                     </span>
                   )}
                   <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: barColor }}>
-                    {avail.toFixed(1)}%
+                    {avail !== null ? `${avail.toFixed(1)}%` : 'N/A'}
                   </span>
                 </div>
               </div>
@@ -222,7 +236,7 @@ export function UptimeHistoryGraph({
               >
                 <div
                   style={{
-                    width: Math.max(4, avail) + '%',
+                    width: avail !== null ? `${Math.max(4, avail)}%` : '0%',
                     height: '100%',
                     background: barColor,
                     borderRadius: 3,
@@ -252,8 +266,11 @@ export function UptimeHistoryGraph({
                       {cycle.failures} failed
                     </span>
                   )}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    ({cycle.totalAttributable} attributable probes)
+                  </span>
                 </div>
-                <span>{cycle.total} probes in cycle</span>
+                <span>{cycle.totalAll} total pings</span>
               </div>
             </div>
           );

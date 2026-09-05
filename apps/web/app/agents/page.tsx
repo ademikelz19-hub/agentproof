@@ -1,18 +1,31 @@
 import { PageShell } from '@/components/PageShell';
-import { AgentExplorerTable } from '@/components/AgentExplorerTable';
-import { db, agents, services } from '@agentproof/db';
-import { desc, eq } from 'drizzle-orm';
-import { Activity, Shield } from 'lucide-react';
+import { AgentExplorerTable, type AgentListItem } from '@/components/AgentExplorerTable';
+import { db, agents, services, observations } from '@agentproof/db';
+import { desc, sql } from 'drizzle-orm';
+import { Activity } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AgentsPage() {
-  // Fetch agents and their associated services directly from Neon
-  let agentItems: any[] = [];
+  let agentItems: AgentListItem[] = [];
 
   try {
     const rawAgents = await db.select().from(agents).orderBy(desc(agents.lastIngestedAt)).limit(500);
     const rawServices = await db.select().from(services);
+    
+    // Fetch observation count per agent to accurately identify active monitoring cohort
+    const obsCounts = await db
+      .select({
+        agentId: observations.agentId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(observations)
+      .groupBy(observations.agentId);
+
+    const obsCountMap = new Map<string, number>();
+    for (const row of obsCounts) {
+      obsCountMap.set(row.agentId, Number(row.count));
+    }
 
     // Group services by agentId
     const servicesByAgent = new Map<string, typeof rawServices>();
@@ -21,21 +34,30 @@ export default async function AgentsPage() {
       servicesByAgent.get(svc.agentId)!.push(svc);
     }
 
-    agentItems = rawAgents.map((a) => ({
-      id: a.id,
-      chain: a.chain,
-      onchainId: a.onchainId,
-      registryAddress: a.registryAddress,
-      name: a.name,
-      description: a.description,
-      metadataResolved: a.metadataResolved,
-      services: servicesByAgent.get(a.id) ?? [],
-      provenance: {
-        source: a.provenanceSource,
-        origin: a.provenanceOrigin,
-        observedAt: a.lastIngestedAt ? new Date(a.lastIngestedAt).toISOString() : new Date().toISOString(),
-      },
-    }));
+    agentItems = rawAgents.map((a) => {
+      const obsCount = obsCountMap.get(a.id) ?? 0;
+      return {
+        id: a.id,
+        chain: a.chain as any,
+        onchainId: a.onchainId,
+        registryAddress: a.registryAddress ?? undefined,
+        name: a.name,
+        description: a.description,
+        metadataResolved: a.metadataResolved,
+        services: (servicesByAgent.get(a.id) ?? []).map((s) => ({
+          id: s.id,
+          protocol: s.protocol,
+          url: s.url,
+        })),
+        isMonitored: obsCount > 0,
+        observationCount: obsCount,
+        provenance: {
+          source: a.provenanceSource as any,
+          origin: a.provenanceOrigin,
+          observedAt: a.lastIngestedAt ? new Date(a.lastIngestedAt).toISOString() : new Date().toISOString(),
+        },
+      };
+    });
   } catch (err) {
     console.error('Error fetching agents list:', err);
   }
@@ -60,7 +82,7 @@ export default async function AgentsPage() {
           }}
         >
           <Activity size={12} />
-          <span>LIVE EXPLORER • BNB CHAIN (56)</span>
+          <span>DIRECTORY • BNB CHAIN (56)</span>
         </div>
 
         <h1
@@ -74,9 +96,9 @@ export default async function AgentsPage() {
         >
           Autonomous Agents Directory
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', maxWidth: 680, lineHeight: 1.6 }}>
-          Every agent listed here reflects real, independently measured evidence — reachability,
-          latency, and evidence sufficiency. No listing is ever synthesized from placeholder or mock data.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', maxWidth: 720, lineHeight: 1.6 }}>
+          Directory of ERC-8004 agents discovered from the BNB Chain registry. Agents with advertised endpoints
+          are monitored via scheduled autonomous probe cycles.
         </p>
       </div>
 
