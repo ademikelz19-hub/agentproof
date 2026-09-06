@@ -23,7 +23,7 @@ export interface AgentListItem extends AgentIdentity {
 
 const PAGE_SIZE = 25;
 
-export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
+export function AgentExplorerTable({ agents, totalCount }: { agents: AgentListItem[]; totalCount?: number }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'MONITORED' | 'WITH_SERVICES' | 'RESOLVED'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
@@ -137,7 +137,7 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
               }}
               className={`btn btn-sm ${filterMode === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
             >
-              All Indexed ({agents.length})
+              All Indexed ({totalCount ?? agents.length})
             </button>
             <button
               type="button"
@@ -190,6 +190,9 @@ export function AgentExplorerTable({ agents }: { agents: AgentListItem[] }) {
         <span>
           Showing {filteredAgents.length === 0 ? 0 : (activePage - 1) * PAGE_SIZE + 1}–
           {Math.min(activePage * PAGE_SIZE, filteredAgents.length)} of {filteredAgents.length} agents
+          {totalCount && totalCount > agents.length && filterMode === 'ALL' && !searchTerm
+            ? ` (${totalCount.toLocaleString()} total in registry)`
+            : null}
         </span>
         <span>BNB Chain (56) • ERC-8004 Registry</span>
       </div>

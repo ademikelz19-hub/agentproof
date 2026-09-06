@@ -10,9 +10,13 @@ export const maxDuration = 25;
 export default async function AgentsPage() {
   let agentItems: AgentListItem[] = [];
   let fetchError: string | null = null;
+  let totalAgentCount: number | undefined;
 
   try {
-    const rows = await db.execute(sql`
+    // Run total count and main query in parallel — count is a cheap seq scan
+    const [countResult, rows] = await Promise.all([
+      db.execute(sql`SELECT COUNT(*)::int AS total FROM agents`),
+      db.execute(sql`
       SELECT
         a.id,
         a.chain,
@@ -45,8 +49,10 @@ export default async function AgentsPage() {
         WHERE o.agent_id = a.id
       ) os ON true
       ORDER BY a.last_ingested_at DESC
-      LIMIT 300
-    `);
+    `),
+    ]);
+
+    totalAgentCount = Number((countResult.rows[0] as Record<string, unknown>)?.total ?? 0);
 
     agentItems = (rows.rows as Record<string, unknown>[]).map((row) => {
       const totalCount = Number(row.totalCount ?? 0);
@@ -100,7 +106,7 @@ export default async function AgentsPage() {
           }}
         >
           <Activity size={12} />
-          <span>DIRECTORY • BNB CHAIN (56)</span>
+          <span>DIRECTORY • BNB CHAIN ({totalAgentCount ?? agentItems.length})</span>
         </div>
         <h1
           style={{
@@ -134,7 +140,7 @@ export default async function AgentsPage() {
           ⚠ Directory temporarily unavailable: {fetchError}
         </div>
       )}
-      <AgentExplorerTable agents={agentItems} />
+      <AgentExplorerTable agents={agentItems} totalCount={totalAgentCount} />
     </PageShell>
   );
 }
