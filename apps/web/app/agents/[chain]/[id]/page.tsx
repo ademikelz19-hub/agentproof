@@ -346,9 +346,10 @@ export default async function AgentPassportPage({
             </span>
           </div>
           {metadata?.metadataUri && (
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', maxWidth: '100%', flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--text-muted)' }}>Metadata Link: </span>
-              <SafeExternalLink url={metadata.metadataUri} />
+              <SafeExternalLink url={metadata.metadataUri} maxLength={36} />
+              <CopyButton text={metadata.metadataUri} label="URI" />
             </div>
           )}
           <div>
