@@ -45,13 +45,13 @@ async function run() {
   
   // Fetch the newest cohort from 8004scan (20 latest agents for continuous discovery)
   const listResult = await adapter.listAgents({ limit: 20 });
+  const liveAgents = listResult.ok ? listResult.data : [];
   if (!listResult.ok) {
-    console.error('Failed to list agents from 8004scan:', listResult.detail);
-    process.exit(1);
+    console.warn(`[Warning] 8004scan live discovery temporarily unavailable (${listResult.detail}). Proceeding with database rotation cohort.`);
   }
 
   // Merge priority anchors + live-discovered agents (deduplicated by id)
-  const discoveredSet = new Map(listResult.data.map((a) => [a.id, a]));
+  const discoveredSet = new Map(liveAgents.map((a) => [a.id, a]));
   for (const priorityId of PRIORITY_AGENT_IDS) {
     if (!discoveredSet.has(priorityId)) {
       const tokenId = priorityId.split(':')[1]!;
