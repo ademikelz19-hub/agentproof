@@ -11,14 +11,22 @@ export async function GET(
   const parsed = parseAgentParams(await params);
   if (!parsed.ok) {
     return new Response(generateBadgeSvg('AgentProof', 'invalid id', '#e11d48'), {
-      headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-cache' },
+      headers: {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 
   const agent = await agentRepository.getAgent(parsed.value.chain, parsed.value.id);
   if (!agent) {
     return new Response(generateBadgeSvg('AgentProof', 'agent not found', '#64748b'), {
-      headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-cache' },
+      headers: {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 
@@ -57,6 +65,7 @@ export async function GET(
     headers: {
       'Content-Type': 'image/svg+xml; charset=utf-8',
       'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }

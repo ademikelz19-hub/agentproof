@@ -50,6 +50,8 @@ export async function GET() {
       headers: {
         'Cache-Control': 'no-store, max-age=0',
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
       },
     },
   );

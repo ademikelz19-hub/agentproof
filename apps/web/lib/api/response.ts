@@ -20,8 +20,22 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   INTERNAL_ERROR: 500,
 };
 
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
+};
+
+function applyCors<T>(res: NextResponse<T>): NextResponse<T> {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    res.headers.set(key, value);
+  }
+  return res;
+}
+
 export function apiError(code: ApiErrorCode, message: string): NextResponse<ApiErrorBody> {
-  return NextResponse.json({ error: { code, message } }, { status: STATUS_BY_CODE[code] });
+  const res = NextResponse.json({ error: { code, message } }, { status: STATUS_BY_CODE[code] });
+  return applyCors(res);
 }
 
 /**
@@ -42,5 +56,5 @@ export function apiOk<T>(data: T, init?: { cacheSeconds?: number }): NextRespons
       `public, max-age=0, s-maxage=${init.cacheSeconds}, stale-while-revalidate=${init.cacheSeconds}`,
     );
   }
-  return res;
+  return applyCors(res);
 }

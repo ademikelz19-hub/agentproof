@@ -8,13 +8,31 @@ export const agentParamsSchema = z.object({
   id: z.string().min(1).max(200),
 });
 
+export function normalizeChain(rawChain?: string | null): ChainId | null {
+  if (!rawChain) return null;
+  const lower = rawChain.trim().toLowerCase();
+  if (
+    lower === 'bsc' ||
+    lower === '56' ||
+    lower === 'bnb' ||
+    lower === 'bscmainnet' ||
+    lower === 'bsc-mainnet' ||
+    lower === 'binance' ||
+    lower === 'binancesmartchain'
+  ) {
+    return 'bsc';
+  }
+  return null;
+}
+
 export function parseAgentParams(params: { chain: string; id: string }):
   | { ok: true; value: { chain: ChainId; id: string } }
   | { ok: false; error: string } {
   let normalizedParams = params;
   try {
+    const normalizedChain = normalizeChain(params.chain) ?? params.chain;
     normalizedParams = {
-      chain: params.chain,
+      chain: normalizedChain,
       id: decodeURIComponent(params.id),
     };
   } catch {}

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { agentRepository } from '@/lib/api/repositories';
 import { apiError, apiOk } from '@/lib/api/response';
 import { parsePagination } from '@/lib/api/pagination';
-import { SUPPORTED_CHAINS } from '@agentproof/core';
+import { normalizeChain } from '@/lib/api/agent-params';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -12,12 +12,13 @@ export async function GET(request: NextRequest) {
   }
 
   const chainParam = searchParams.get('chain') ?? undefined;
-  if (chainParam && !SUPPORTED_CHAINS.some((c) => c.id === chainParam)) {
-    return apiError('VALIDATION_ERROR', `Unsupported chain: ${chainParam}`);
+  const normalizedChain = chainParam ? normalizeChain(chainParam) : undefined;
+  if (chainParam && !normalizedChain) {
+    return apiError('VALIDATION_ERROR', `Unsupported chain: ${chainParam}. Supported chains: bsc (56)`);
   }
 
   const page = await agentRepository.listAgents({
-    ...(chainParam ? { chain: chainParam as 'bsc' } : {}),
+    ...(normalizedChain ? { chain: normalizedChain } : {}),
     limit: pagination.value.limit,
     ...(pagination.value.cursor ? { cursor: pagination.value.cursor } : {}),
   });
