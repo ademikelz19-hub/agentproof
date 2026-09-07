@@ -293,13 +293,19 @@ export function AgentExplorerTable({ agents, totalCount }: { agents: AgentListIt
                                   color: avail >= 90 ? 'var(--status-success)' : avail >= 70 ? 'var(--status-warning)' : 'var(--status-failure)',
                                 }}
                               >
-                                {avail.toFixed(1)}% Uptime
+                                {avail === 0 ? '0.0% (OFFLINE)' : `${avail.toFixed(1)}% Uptime`}
                               </span>
                             </div>
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                              {agent.latestLatencyMs ? `${agent.latestLatencyMs}ms latency` : `${agent.observationCount} checks logged`}
+                              {agent.latestLatencyMs
+                                ? `${agent.latestLatencyMs}ms latency · ${agent.observationCount} run${agent.observationCount === 1 ? '' : 's'}`
+                                : `${agent.observationCount} test${agent.observationCount === 1 ? '' : 's'} logged`}
                             </span>
                           </div>
+                        ) : (!agent.services || agent.services.length === 0) ? (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            NO ENDPOINTS DECLARED
+                          </span>
                         ) : agent.isMonitored ? (
                           <span className="badge font-mono" style={{ background: 'var(--status-success-bg)', color: 'var(--status-success)', border: '1px solid var(--status-success-border)' }}>
                             <span className="live-pulse" style={{ width: 6, height: 6 }} />
@@ -397,14 +403,14 @@ export function AgentExplorerTable({ agents, totalCount }: { agents: AgentListIt
                         style={{
                           fontWeight: 700,
                           fontSize: '0.82rem',
-                          color: avail >= 90 ? 'var(--status-success)' : 'var(--status-warning)',
+                          color: avail >= 90 ? 'var(--status-success)' : avail >= 70 ? 'var(--status-warning)' : 'var(--status-failure)',
                           padding: '0.15rem 0.45rem',
                           background: 'var(--bg-surface-2)',
                           borderRadius: 4,
                           border: '1px solid var(--border-subtle)',
                         }}
                       >
-                        {avail.toFixed(1)}%
+                        {avail === 0 ? '0.0% OFFLINE' : `${avail.toFixed(1)}%`}
                       </span>
                     ) : (
                       <MonitoringStatusBadge isMonitored={Boolean(agent.isMonitored || (agent.observationCount ?? 0) > 0)} />
