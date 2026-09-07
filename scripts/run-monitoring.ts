@@ -9,7 +9,7 @@ import {
   probeMetadataResolution,
 } from '@agentproof/probes';
 import { BSC, type ProbeTarget, type ChainId, type ServiceProtocol } from '@agentproof/core';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -43,8 +43,8 @@ async function run() {
   const adapter = new EightOFourScanAdapter();
   console.log('Fetching agents from 8004scan...');
   
-  // Fetch the newest cohort from 8004scan
-  const listResult = await adapter.listAgents({ limit: 50 });
+  // Fetch the newest cohort from 8004scan (20 latest agents for continuous discovery)
+  const listResult = await adapter.listAgents({ limit: 20 });
   if (!listResult.ok) {
     console.error('Failed to list agents from 8004scan:', listResult.detail);
     process.exit(1);
@@ -157,6 +157,94 @@ async function run() {
   }
 
   console.log(`Database ingestion complete. ${processedAgents.length} agents updated, ${activeServices.length} active services registered.`);
+
+  // 2b. Pull rotation cohort from existing database:
+  // Find agents with declared services that haven't been probed recently, or have fewest observations.
+  // This guarantees that all 900+ agents in the database accumulate continuous evidence rather than staying at 1 test.
+  console.log('Querying rotation cohort from database...');
+  const rotationRows = await db.execute(sql`
+    SELECT
+      a.id,
+      a.chain,
+      a.onchain_id AS "onchainId",
+      a.registry_address AS "registryAddress",
+      a.name,
+      a.description,
+      a.metadata_uri AS "metadataUri",
+      a.metadata_resolved AS "metadataResolved",
+      a.provenance_source AS "provenanceSource",
+      a.provenance_origin AS "provenanceOrigin",
+      a.first_seen_at AS "firstSeenAt",
+      a.last_ingested_at AS "lastIngestedAt",
+      (
+        SELECT json_agg(json_build_object(
+          'id', s.id,
+          'agentId', s.agent_id,
+          'chain', s.chain,
+          'declarationForm', s.declaration_form,
+          'protocol', s.protocol,
+          'url', s.url,
+          'provenanceSource', s.provenance_source,
+          'provenanceOrigin', s.provenance_origin,
+          'createdAt', s.created_at
+        ))
+        FROM services s
+        WHERE s.agent_id = a.id
+      ) AS "servicesList",
+      COALESCE(
+        (SELECT MAX(o.timestamp) FROM observations o WHERE o.agent_id = a.id),
+        '1970-01-01'::timestamptz
+      ) AS "lastProbedAt",
+      (SELECT COUNT(*)::int FROM observations o WHERE o.agent_id = a.id) AS "obsCount"
+    FROM agents a
+    WHERE EXISTS (SELECT 1 FROM services s WHERE s.agent_id = a.id)
+    ORDER BY "obsCount" ASC, "lastProbedAt" ASC
+    LIMIT 40
+  `);
+
+  const existingAgentIds = new Set(processedAgents.map((a) => a.id));
+  const existingServiceIds = new Set(activeServices.map((s) => s.id));
+
+  for (const row of rotationRows.rows as any[]) {
+    if (!existingAgentIds.has(row.id)) {
+      existingAgentIds.add(row.id);
+      const svcList = Array.isArray(row.servicesList) ? row.servicesList : [];
+      processedAgents.push({
+        id: row.id,
+        chain: row.chain,
+        onchainId: row.onchainId,
+        registryAddress: row.registryAddress,
+        name: row.name,
+        description: row.description,
+        metadataUri: row.metadataUri,
+        metadataResolved: row.metadataResolved,
+        provenanceSource: row.provenanceSource,
+        provenanceOrigin: row.provenanceOrigin,
+        firstSeenAt: new Date(row.firstSeenAt),
+        lastIngestedAt: new Date(row.lastIngestedAt),
+        servicesList: svcList,
+      });
+
+      for (const svc of svcList) {
+        if (!existingServiceIds.has(svc.id)) {
+          existingServiceIds.add(svc.id);
+          activeServices.push({
+            id: svc.id,
+            agentId: svc.agentId,
+            chain: svc.chain,
+            declarationForm: svc.declarationForm,
+            protocol: svc.protocol,
+            url: svc.url,
+            provenanceSource: svc.provenanceSource,
+            provenanceOrigin: svc.provenanceOrigin,
+            createdAt: new Date(svc.createdAt),
+          });
+        }
+      }
+    }
+  }
+
+  console.log(`Final monitoring cohort assembled: ${processedAgents.length} agents, ${activeServices.length} services to probe.`);
 
   // 3. Perform monitoring probe runs
   const runId = randomUUID();

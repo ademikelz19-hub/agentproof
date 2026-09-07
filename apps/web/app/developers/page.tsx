@@ -256,6 +256,66 @@ export default function DevelopersPage() {
             <strong>Inspect Concurrency &amp; Latency:</strong> Check <code className="font-mono">medianLatencyMs</code> and <code className="font-mono">consecutiveFailures</code> before initiating latency-sensitive payments or routing.
           </li>
         </ol>
+
+        {/* Quick Router Snippets */}
+        <div style={{ marginTop: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                TypeScript / Node.js Router Guard
+              </span>
+              <CopyButton
+                text={`async function isAgentHealthy(agentId: string): Promise<boolean> {
+  const res = await fetch(\`https://agentproof-rho.vercel.app/api/v1/agents/bsc/\${agentId}/reliability\`);
+  if (!res.ok) return false;
+  const { data } = await res.json();
+  const window24h = data?.windows?.['24h'];
+  return (window24h?.availabilityPct ?? 0) >= 90.0 && (window24h?.consecutiveFailures ?? 0) === 0;
+}`}
+                label="Copy TS"
+              />
+            </div>
+            <pre style={{ background: 'var(--bg-surface-2)', padding: '0.85rem', borderRadius: 6, fontSize: '0.78rem', color: '#38bdf8', overflowX: 'auto' }}>
+{`// Guard check before delegating onchain task or payment
+async function isAgentHealthy(agentId: string): Promise<boolean> {
+  const res = await fetch(\`https://agentproof-rho.vercel.app/api/v1/agents/bsc/\${agentId}/reliability\`);
+  if (!res.ok) return false;
+  const { data } = await res.json();
+  const window24h = data?.windows?.['24h'];
+  return (window24h?.availabilityPct ?? 0) >= 90.0 && (window24h?.consecutiveFailures ?? 0) === 0;
+}`}
+            </pre>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                Python Orchestrator Guard
+              </span>
+              <CopyButton
+                text={`import requests
+
+def is_agent_available(agent_id: str) -> bool:
+    resp = requests.get(f"https://agentproof-rho.vercel.app/api/v1/agents/bsc/{agent_id}/reliability", timeout=3)
+    if resp.status_code != 200:
+        return False
+    w24 = resp.json().get("data", {}).get("windows", {}).get("24h", {})
+    return w24.get("availabilityPct", 0) >= 90.0 and w24.get("consecutiveFailures", 0) == 0`}
+                label="Copy Python"
+              />
+            </div>
+            <pre style={{ background: 'var(--bg-surface-2)', padding: '0.85rem', borderRadius: 6, fontSize: '0.78rem', color: '#34d399', overflowX: 'auto' }}>
+{`import requests
+
+def is_agent_available(agent_id: str) -> bool:
+    resp = requests.get(f"https://agentproof-rho.vercel.app/api/v1/agents/bsc/{agent_id}/reliability", timeout=3)
+    if resp.status_code != 200:
+        return False
+    w24 = resp.json().get("data", {}).get("windows", {}).get("24h", {})
+    return w24.get("availabilityPct", 0) >= 90.0 and w24.get("consecutiveFailures", 0) == 0`}
+            </pre>
+          </div>
+        </div>
       </section>
     </PageShell>
   );

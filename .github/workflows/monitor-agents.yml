@@ -2,8 +2,8 @@ name: Autonomous Agent Monitoring
 
 on:
   schedule:
-    # Run hourly at minute 0 (24 runs/day = ~240 min/month on GitHub Actions free tier)
-    - cron: '0 * * * *'
+    # Run every 30 minutes (48 runs/day = ~1,440 min/month, well inside GitHub Actions 2,000 free min)
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 concurrency:
