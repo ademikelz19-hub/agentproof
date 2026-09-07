@@ -267,6 +267,10 @@ export default async function AgentPassportPage({
                 text={`https://agentproof-rho.vercel.app/api/v1/agents/${agent.chain}/${agent.id}/reliability`}
                 label="API URL"
               />
+              <CopyButton
+                text={`[![AgentProof Uptime](https://agentproof-rho.vercel.app/api/v1/agents/${agent.chain}/${agent.id}/badge.svg)](https://agentproof-rho.vercel.app/agents/${agent.chain}/${agent.id})`}
+                label="Copy Markdown Badge"
+              />
             </div>
           </div>
 

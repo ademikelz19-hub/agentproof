@@ -184,6 +184,27 @@ export default function DevelopersPage() {
               {`curl "${baseUrl}/agents/bsc/bsc:316380/services"`}
             </pre>
           </div>
+
+          {/* Endpoint 5: Dynamic SVG Badge */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge" style={{ background: 'rgba(240, 185, 11, 0.15)', color: 'var(--accent-bnb)' }}>
+                  GET
+                </span>
+                <span className="font-mono" style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  /agents/:chain/:id/badge.svg
+                </span>
+              </div>
+              <CopyButton text={`[![AgentProof](https://agentproof-rho.vercel.app/api/v1/agents/bsc/bsc:2518/badge.svg)](https://agentproof-rho.vercel.app/agents/bsc/bsc:2518)`} label="Copy Markdown" />
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+              Dynamic live SVG badge for agent developers to embed in GitHub READMEs, documentation, or websites. Shows real-time 24h uptime percentage and median latency.
+            </p>
+            <pre style={{ background: 'var(--bg-surface-2)', padding: '0.75rem', borderRadius: 6, fontSize: '0.78rem', color: 'var(--text-secondary)', overflowX: 'auto' }}>
+              {`<img src="${baseUrl}/agents/bsc/bsc:2518/badge.svg" alt="AgentProof Availability" />`}
+            </pre>
+          </div>
         </div>
       </section>
 
