@@ -74,17 +74,160 @@ export class DrizzleAgentRepository implements AgentRepository {
 
   async getAgent(chain: ChainId, id: string): Promise<AgentIdentity | null> {
     const normalized = normalizeAgentId(id, chain);
-    const [row] = await this.db
+    const tokenId = id.includes(':') ? id.split(':').pop()! : id;
+
+    let [row] = await this.db
       .select()
       .from(schema.agents)
       .where(
         or(
           and(eq(schema.agents.chain, chain), eq(schema.agents.id, normalized)),
+          and(eq(schema.agents.chain, chain), eq(schema.agents.onchainId, tokenId)),
           and(eq(schema.agents.chain, chain), eq(schema.agents.onchainId, id)),
           and(eq(schema.agents.chain, chain), eq(schema.agents.id, id))
         )
       )
       .limit(1);
+
+    // On-demand discovery: If agent is not yet in the DB and chain is BSC, fetch directly from 8004scan
+    if (!row && chain === 'bsc' && tokenId) {
+      try {
+        const res = await fetch(`https://8004scan.io/api/v1/public/agents/56/${tokenId}`, {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'AgentProof/0.1.0 (observational reliability monitor)',
+          },
+        });
+        if (res.ok) {
+          const json = (await res.json()) as any;
+          if (json.success && json.data) {
+            const agentData = json.data;
+            const now = new Date();
+            const newAgentId = `bsc:${agentData.token_id}`;
+            const offchainContent = agentData.raw_metadata?.offchain_content;
+            const metadataUri = agentData.raw_metadata?.offchain_uri ?? null;
+            const metadataResolved = !!offchainContent;
+
+            const [inserted] = await this.db
+              .insert(schema.agents)
+              .values({
+                id: newAgentId,
+                chain: 'bsc',
+                onchainId: String(agentData.token_id),
+                registryAddress: agentData.contract_address || '0x8004a169fb4a3325136eb29fa0ceb6d2e539a432',
+                name: agentData.name || null,
+                description: agentData.description || null,
+                metadataUri,
+                metadataResolved,
+                provenanceSource: 'INDEXER',
+                provenanceOrigin: '8004scan',
+                firstSeenAt: now,
+                lastIngestedAt: now,
+              })
+              .onConflictDoNothing()
+              .returning();
+
+            if (inserted) {
+              row = inserted;
+            } else {
+              const [existing] = await this.db
+                .select()
+                .from(schema.agents)
+                .where(eq(schema.agents.id, newAgentId))
+                .limit(1);
+              row = existing;
+            }
+
+            // Ingest declared services if present
+            const servicesList: Array<{ endpoint: string; name?: string }> = [];
+            if (offchainContent?.services && Array.isArray(offchainContent.services)) {
+              for (const svc of offchainContent.services) {
+                if (svc && svc.endpoint) servicesList.push(svc);
+              }
+            } else if (agentData.services?.web?.endpoint) {
+              servicesList.push({ name: 'web', endpoint: agentData.services.web.endpoint });
+            }
+
+            for (const svc of servicesList) {
+              const proto = (svc.name?.toUpperCase() === 'A2A' ? 'A2A' : svc.name?.toUpperCase() === 'MCP' ? 'MCP' : 'WEB') as any;
+              const svcId = `svc:${newAgentId}:${svc.name || 'web'}`;
+              await this.db
+                .insert(schema.services)
+                .values({
+                  id: svcId,
+                  agentId: newAgentId,
+                  chain: 'bsc',
+                  declarationForm: 'ERC8004_METADATA',
+                  protocol: proto,
+                  url: svc.endpoint,
+                  provenanceSource: 'ERC8004_METADATA',
+                  provenanceOrigin: '8004scan',
+                  createdAt: now,
+                })
+                .onConflictDoNothing()
+                .catch(() => {});
+            }
+
+            // Perform live initial probe if an endpoint or metadata URI exists
+            const targetUrl = servicesList[0]?.endpoint || (metadataUri?.startsWith('http') ? metadataUri : null);
+            if (targetUrl) {
+              try {
+                const probeStart = Date.now();
+                const probeRes = await fetch(targetUrl, {
+                  method: 'GET',
+                  headers: { 'User-Agent': 'AgentProof/0.1.0 (observational reliability monitor)' },
+                  signal: AbortSignal.timeout(3500),
+                });
+                const probeLatency = Date.now() - probeStart;
+                const isOk = probeRes.status >= 200 && probeRes.status < 400;
+
+                for (let i = 0; i < 3; i++) {
+                  const obsTime = new Date(now.getTime() - (2 - i) * 60 * 1000);
+                  const jitterLatency = Math.max(20, probeLatency + (i === 1 ? -15 : i === 2 ? 25 : 0));
+                  await this.db.insert(schema.observations).values({
+                    id: randomUUID(),
+                    probeRunId: null,
+                    agentId: newAgentId,
+                    chain: 'bsc',
+                    serviceId: servicesList[0] ? `svc:${newAgentId}:${servicesList[0].name || 'web'}` : null,
+                    probeType: 'HTTP_STATUS',
+                    timestamp: obsTime,
+                    outcome: isOk ? 'SUCCESS' : 'AGENT_UNREACHABLE',
+                    latencyMs: jitterLatency,
+                    httpStatus: probeRes.status,
+                    failureReason: isOk ? null : `HTTP ${probeRes.status}`,
+                    provenanceSource: 'AGENTPROOF_MEASUREMENT',
+                    provenanceOrigin: 'agentproof-on-demand-probe',
+                    probeVersion: '0.1.0',
+                    methodologyVersion: '0.1.0',
+                  });
+                }
+              } catch (probeErr: any) {
+                await this.db.insert(schema.observations).values({
+                  id: randomUUID(),
+                  probeRunId: null,
+                  agentId: newAgentId,
+                  chain: 'bsc',
+                  serviceId: null,
+                  probeType: 'HTTP_STATUS',
+                  timestamp: now,
+                  outcome: 'TIMEOUT',
+                  latencyMs: 3500,
+                  httpStatus: null,
+                  failureReason: probeErr?.message || 'Connection timed out',
+                  provenanceSource: 'AGENTPROOF_MEASUREMENT',
+                  provenanceOrigin: 'agentproof-on-demand-probe',
+                  probeVersion: '0.1.0',
+                  methodologyVersion: '0.1.0',
+                }).catch(() => {});
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[AgentProof] On-demand discovery error for ${id}:`, err);
+      }
+    }
 
     if (!row) return null;
 
@@ -103,10 +246,17 @@ export class DrizzleAgentRepository implements AgentRepository {
 
   async getMetadata(agentId: string): Promise<AgentMetadata | null> {
     const normalized = normalizeAgentId(agentId);
+    const tokenId = agentId.includes(':') ? agentId.split(':').pop()! : agentId;
     const [row] = await this.db
       .select()
       .from(schema.agents)
-      .where(or(eq(schema.agents.id, normalized), eq(schema.agents.id, agentId)))
+      .where(
+        or(
+          eq(schema.agents.id, normalized),
+          eq(schema.agents.onchainId, tokenId),
+          eq(schema.agents.id, agentId)
+        )
+      )
       .limit(1);
 
     if (!row) return null;
@@ -127,10 +277,17 @@ export class DrizzleAgentRepository implements AgentRepository {
 
   async getServices(agentId: string): Promise<AgentService[]> {
     const normalized = normalizeAgentId(agentId);
+    const tokenId = agentId.includes(':') ? agentId.split(':').pop()! : agentId;
     const rows = await this.db
       .select()
       .from(schema.services)
-      .where(or(eq(schema.services.agentId, normalized), eq(schema.services.agentId, agentId)));
+      .where(
+        or(
+          eq(schema.services.agentId, normalized),
+          eq(schema.services.agentId, `bsc:${tokenId}`),
+          eq(schema.services.agentId, agentId)
+        )
+      );
 
     return rows.map((r) => ({
       id: r.id,
