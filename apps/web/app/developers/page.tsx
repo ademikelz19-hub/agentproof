@@ -439,7 +439,7 @@ export default function DevelopersPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="${baseUrl}/agents/bsc/bsc:2518/badge.svg"
+                src={`${baseUrl}/agents/bsc/bsc:2518/badge.svg`}
                 alt="AgentProof live badge preview"
                 style={{ height: 20 }}
               />
